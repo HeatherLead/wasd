@@ -1,0 +1,32 @@
+{
+  "evaluation_window": {
+    "start_time": "2026-01-01T00:00:00+00:00",
+    "end_time": "2026-01-31T23:30:00+00:00",
+    "total_expected_half_hours": 1488,
+    "total_expected_hours": 744
+  },
+  "counts": {
+    "complete_intervals": 1488,
+    "missing_actual_count": 0,
+    "missing_forecast_count": 0,
+    "missing_both_count": 0,
+    "completeness_pct": 100.0
+  },
+  "missing_intervals": {
+    "missing_actuals": [],
+    "missing_forecasts": [],
+    "missing_both": []
+  },
+  "dataset_metrics": {
+    "hourly_rows": 744,
+    "half_hourly_rows": 1488,
+    "mean_actual_mw": 11580.74,
+    "mean_forecast_mw": 13432.64,
+    "mean_bias_mw": 1851.9,
+    "mae_mw": 2142.12,
+    "rmse_mw": 2611.7,
+    "min_horizon_hours": 16.5,
+    "max_horizon_hours": 39.5,
+    "mean_horizon_hours": 28.0
+  }
+}

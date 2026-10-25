@@ -54,3 +54,8 @@ data/     (raw/ and processed/ snapshots)
 scripts/  (ingestion and analysis experiments)
 docs/     (DECISIONS.md, replay definition)
 Dockerfile, docker-compose.yml, README.md
+
+## Dependency rules
+- The frontend is already scaffolded with the latest Vite + React + TypeScript. Do NOT re-scaffold it or downgrade any package.
+- Before adding a dependency, check the latest stable version (`npm view <pkg> version` / `pip index versions <pkg>`) and use it. Don't pin from memory.
+- Don't change versions in package.json or requirements.txt unless something is broken, and tell me why if you do.
