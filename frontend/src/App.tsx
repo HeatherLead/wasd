@@ -1,8 +1,14 @@
 /**
  * frontend/src/App.tsx
- * Wind Forecast Accuracy Portal - Main Application Dashboard.
- * Integrates commercial buying decisions: publication transparency, shortfall energy,
- * empirical buffer sizing, forecast revision trajectories, and largest-error rankings.
+ * Wind Forecast Accuracy Portal - Redesigned as a Simple 3-Page Decision Tool.
+ *
+ * Core Principle - Answers three questions, one per page:
+ * 1. "How accurate are the wind forecasts the trader actually saw?" (Page 1: Accuracy)
+ * 2. "What would the trader have seen for a given delivery day?" (Page 2: Decision Replay)
+ * 3. "What does that mean for what we buy?" (Page 3: Buy Range)
+ *
+ * Secondary details (interval table, revisions, largest errors, audit) moved to a collapsed section.
+ * Styling: White background, black typography, zero gradients strictly enforced.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -11,399 +17,344 @@ import type {
   SummaryResponse,
   DayDetailResponse,
   AccuracyResponse,
+  DaySummaryItem,
 } from './api/client';
-import { HeaderControls } from './components/HeaderControls';
-import { KPICard } from './components/KPICard';
-import { ForecastChart } from './components/ForecastChart';
-import { AccuracyViews } from './components/AccuracyViews';
-import { IntervalTable } from './components/IntervalTable';
-import { ForecastRevisions } from './components/ForecastRevisions';
-import { WorstIntervals } from './components/WorstIntervals';
+import { Page1Accuracy } from './components/Page1Accuracy';
+import { Page2DecisionReplay } from './components/Page2DecisionReplay';
+import { Page3BuyRange } from './components/Page3BuyRange';
+import { DetailsSection } from './components/DetailsSection';
 import {
-  BarChart3,
-  LineChart,
-  Table2,
-  AlertCircle,
+  BarChart2,
+  Clock,
+  ShoppingCart,
   RefreshCw,
-  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 
+type PageId = 'accuracy' | 'replay' | 'buy-range';
+
 export const App: React.FC = () => {
-  const [selectedDate, setSelectedDate] = useState<string>('2026-01-01');
+  const [activePage, setActivePage] = useState<PageId>('accuracy');
+
+  // Shared Global States
   const [cutoffTime, setCutoffTime] = useState<string>('09:00');
-  const [resolution, setResolution] = useState<'half_hourly' | 'hourly'>('half_hourly');
-  const [activeTab, setActiveTab] = useState<'overview' | 'accuracy' | 'table'>('overview');
+  const [selectedDate, setSelectedDate] = useState<string>('2026-01-15');
+  const [demandMw, setDemandMw] = useState<number | null>(null);
 
-  // Selected interval for forecast revision trajectory
-  const [selectedTargetTime, setSelectedTargetTime] = useState<string>('2026-01-01T12:00:00Z');
-
+  // API Data States
   const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null);
-  const [dayDetail, setDayDetail] = useState<DayDetailResponse | null>(null);
+  const [daysList, setDaysList] = useState<DaySummaryItem[]>([]);
   const [accuracyData, setAccuracyData] = useState<AccuracyResponse | null>(null);
+  const [dayDetail, setDayDetail] = useState<DayDetailResponse | null>(null);
 
+  // Loading and Error States
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingDayDetail, setLoadingDayDetail] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async (isRefresh = false) => {
+  // 1. Fetch Global Data (Summary, Days list, Accuracy breakdowns) when cutoff changes
+  const fetchGlobalData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
 
     try {
-      const [sumRes, dayRes, accRes] = await Promise.all([
+      const [sumRes, daysRes, accRes] = await Promise.all([
         apiClient.getSummary(cutoffTime),
-        apiClient.getDayDetail(selectedDate, cutoffTime, resolution),
+        apiClient.getDays(cutoffTime),
         apiClient.getAccuracy(cutoffTime),
       ]);
 
       setSummaryData(sumRes);
-      setDayDetail(dayRes);
+      setDaysList(daysRes.days);
       setAccuracyData(accRes);
-
-      // Keep target time within selected day
-      setSelectedTargetTime(`${selectedDate}T12:00:00Z`);
     } catch (err: any) {
-      setError(err?.message || 'Failed to load data from the analytical engine.');
+      setError(err?.message || 'Failed to load analytical summary from engine.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [cutoffTime, selectedDate, resolution]);
+  }, [cutoffTime]);
+
+  // 2. Fetch Day Detail whenever selectedDate or cutoffTime changes
+  const fetchDayDetail = useCallback(async () => {
+    setLoadingDayDetail(true);
+    try {
+      const detail = await apiClient.getDayDetail(selectedDate, cutoffTime, 'half_hourly');
+      setDayDetail(detail);
+    } catch (err: any) {
+      console.error('Error fetching day detail:', err);
+    } finally {
+      setLoadingDayDetail(false);
+    }
+  }, [selectedDate, cutoffTime]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchGlobalData();
+  }, [fetchGlobalData]);
 
-  // Extract latest publish time used on selected day
-  const latestPublishTimeUsed = dayDetail?.intervals?.find(
-    (i) => i.forecast_publish_time !== null
-  )?.forecast_publish_time;
+  useEffect(() => {
+    fetchDayDetail();
+  }, [fetchDayDetail]);
+
+  const cutoffPresets = [
+    { label: '07:30 UTC', value: '07:30' },
+    { label: '09:00 UTC (EPEX / N2EX Default)', value: '09:00' },
+    { label: '09:30 UTC (N2EX Late)', value: '09:30' },
+    { label: '12:00 UTC (EU SDAC)', value: '12:00' },
+    { label: '15:00 UTC (Afternoon)', value: '15:00' },
+  ];
 
   return (
-    <div className="app-container">
-      {/* Top Header */}
-      <header className="app-header">
-        <HeaderControls
-          selectedDate={selectedDate}
-          onSelectDate={(newDate) => {
-            setSelectedDate(newDate);
-            setSelectedTargetTime(`${newDate}T12:00:00Z`);
-          }}
-          cutoffTime={cutoffTime}
-          onSelectCutoff={setCutoffTime}
-          resolution={resolution}
-          onSelectResolution={setResolution}
-          isRefreshing={refreshing}
-          onRefresh={() => fetchData(true)}
-        />
-      </header>
-
-      {/* Navigation Tabs */}
-      <nav className="nav-tabs" aria-label="Dashboard views">
-        <button
-          type="button"
-          className={`nav-tab ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
-        >
-          <LineChart size={15} />
-          Day Forecast & Buying Decisions
-        </button>
-
-        <button
-          type="button"
-          className={`nav-tab ${activeTab === 'accuracy' ? 'active' : ''}`}
-          onClick={() => setActiveTab('accuracy')}
-        >
-          <BarChart3 size={15} />
-          Portfolio Breakdowns
-        </button>
-
-        <button
-          type="button"
-          className={`nav-tab ${activeTab === 'table' ? 'active' : ''}`}
-          onClick={() => setActiveTab('table')}
-        >
-          <Table2 size={15} />
-          Settlement Table
-        </button>
-      </nav>
-
-      {/* Main Workspace */}
-      <main className="app-content">
-        {/* Error Notification */}
-        {error && (
-          <div className="error-banner" role="alert">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <AlertCircle size={18} />
-              <span className="error-text">{error}</span>
+    <div className="app-container" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', color: '#000000' }}>
+      {/* Global Header */}
+      <header
+        style={{
+          borderBottom: '1px solid #e0e0e0',
+          backgroundColor: '#ffffff',
+          padding: '1rem 2rem',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+        }}
+      >
+        <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          {/* Brand & Context */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ width: '9px', height: '9px', backgroundColor: '#000000', borderRadius: '50%' }} />
+              <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#000000' }}>
+                GB Wholesale Day-Ahead Wind Forecast Accuracy Portal
+              </h1>
             </div>
-            <button type="button" className="retry-btn" onClick={() => fetchData()}>
-              <RefreshCw size={12} style={{ display: 'inline', marginRight: '6px' }} />
-              Retry
+            <p style={{ margin: '0.2rem 0 0 1.2rem', fontSize: '0.8rem', color: '#666666' }}>
+              Empirical decision support for UK electricity procurement (January 2026 delivery days).
+            </p>
+          </div>
+
+          {/* Global Cutoff Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#f5f5f5', padding: '0.35rem 0.75rem', border: '1px solid #cccccc' }}>
+              <Clock size={15} color="#000000" />
+              <label htmlFor="cutoff-select" style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                D-1 Decision Cutoff:
+              </label>
+              <select
+                id="cutoff-select"
+                value={cutoffTime}
+                onChange={(e) => setCutoffTime(e.target.value)}
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  backgroundColor: '#ffffff',
+                  color: '#000000',
+                  border: '1px solid #000000',
+                  cursor: 'pointer',
+                }}
+              >
+                {cutoffPresets.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => fetchGlobalData(true)}
+              disabled={refreshing}
+              title="Refresh data from engine"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.45rem 0.8rem',
+                backgroundColor: '#ffffff',
+                color: '#000000',
+                border: '1px solid #000000',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: refreshing ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <RefreshCw size={14} className={refreshing ? 'spinning' : ''} />
+              {refreshing ? 'Updating...' : 'Refresh'}
             </button>
           </div>
-        )}
+        </div>
 
-        {/* Loading Skeleton */}
-        {loading && !error && (
-          <div>
-            <div className="kpi-grid">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="kpi-card" style={{ height: '100px' }}>
-                  <div className="loading-skeleton" style={{ width: '60%', marginBottom: '12px' }} />
-                  <div className="loading-skeleton" style={{ width: '80%', height: '32px' }} />
-                </div>
-              ))}
-            </div>
-            <div className="section-card" style={{ height: '400px' }}>
-              <div className="loading-skeleton" style={{ height: '100%' }} />
-            </div>
+        {/* 3-Page Decision Tabs */}
+        <div style={{ maxWidth: '1440px', margin: '1rem auto 0 auto', borderTop: '1px solid #eeeeee', paddingTop: '0.75rem' }}>
+          <nav style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {/* Page 1 Button */}
+            <button
+              type="button"
+              onClick={() => setActivePage('accuracy')}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                padding: '0.65rem 1.25rem',
+                backgroundColor: activePage === 'accuracy' ? '#000000' : '#ffffff',
+                color: activePage === 'accuracy' ? '#ffffff' : '#000000',
+                border: '1px solid #000000',
+                cursor: 'pointer',
+                textAlign: 'left',
+                minWidth: '240px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
+                <BarChart2 size={16} />
+                1. Accuracy (The Evidence)
+              </div>
+              <span style={{ fontSize: '0.75rem', opacity: activePage === 'accuracy' ? 0.85 : 0.65, marginTop: '0.15rem' }}>
+                "How good were the forecasts?"
+              </span>
+            </button>
+
+            {/* Page 2 Button */}
+            <button
+              type="button"
+              onClick={() => setActivePage('replay')}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                padding: '0.65rem 1.25rem',
+                backgroundColor: activePage === 'replay' ? '#000000' : '#ffffff',
+                color: activePage === 'replay' ? '#ffffff' : '#000000',
+                border: '1px solid #000000',
+                cursor: 'pointer',
+                textAlign: 'left',
+                minWidth: '240px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
+                <Clock size={16} />
+                2. Decision Replay (The Trader's View)
+              </div>
+              <span style={{ fontSize: '0.75rem', opacity: activePage === 'replay' ? 0.85 : 0.65, marginTop: '0.15rem' }}>
+                "What did the trader see on D-1?"
+              </span>
+            </button>
+
+            {/* Page 3 Button */}
+            <button
+              type="button"
+              onClick={() => setActivePage('buy-range')}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                padding: '0.65rem 1.25rem',
+                backgroundColor: activePage === 'buy-range' ? '#000000' : '#ffffff',
+                color: activePage === 'buy-range' ? '#ffffff' : '#000000',
+                border: '1px solid #000000',
+                cursor: 'pointer',
+                textAlign: 'left',
+                minWidth: '240px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
+                <ShoppingCart size={16} />
+                3. Buy Range (The Recommendation)
+              </div>
+              <span style={{ fontSize: '0.75rem', opacity: activePage === 'buy-range' ? 0.85 : 0.65, marginTop: '0.15rem' }}>
+                "What should we plan to buy?"
+              </span>
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      {/* Main Page Content */}
+      <main style={{ flex: 1, padding: '2rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+        {error && (
+          <div style={{ padding: '1rem', backgroundColor: '#fff', border: '2px solid #d32f2f', color: '#d32f2f', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <AlertCircle size={20} />
+            <span>{error}</span>
           </div>
         )}
 
-        {/* Render Dashboard Content when Loaded */}
-        {!loading && !error && summaryData && (
+        {loading ? (
+          <div style={{ padding: '4rem', textAlign: 'center', color: '#666666', fontSize: '1rem' }}>
+            Loading analytical dataset from Parquet store...
+          </div>
+        ) : (
           <>
-            {/* Commercial Buying Decision & Performance KPI Cards */}
-            <section aria-label="Commercial Buying Decision Metrics">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#495057' }}>
-                  January 2026 Procurement & Accuracy Baseline ({cutoffTime} UTC Decision Cutoff)
-                </span>
-                <span style={{ fontSize: '11px', color: '#6c757d' }}>
-                  744 / 744 hours evaluated &bull; 100% verified &le; cutoff
-                </span>
-              </div>
-
-              <div className="kpi-grid">
-                {/* 1. Commercial Shortfall Energy */}
-                <KPICard
-                  title="Wind-Shortfall Energy"
-                  value={
-                    summaryData.kpis.shortfall_energy_mwh !== null
-                      ? Math.round(summaryData.kpis.shortfall_energy_mwh).toLocaleString()
-                      : null
-                  }
-                  unit="MWh"
-                  subtext="Deficit requiring thermal replacement"
-                  tooltip="Total energy volume where wind outturn fell short of the decision-time forecast: sum of max(Forecast - Actual, 0) in MWh. This represents unhedged energy that had to be covered with thermal units or balancing purchases."
-                  highlight={true}
-                />
-
-                {/* 2. Historical Buffer Recommendation */}
-                <KPICard
-                  title="Historical P90 Buffer"
-                  value={
-                    summaryData.kpis.p90_shortfall_buffer_mw !== null
-                      ? Math.round(summaryData.kpis.p90_shortfall_buffer_mw).toLocaleString()
-                      : null
-                  }
-                  unit="MW"
-                  subtext="Sizing covers 90% of deficit hours"
-                  tooltip="Empirical benchmark: maintaining this flexible thermal backup capacity would have covered 90% of all hourly wind deficit events during January 2026. (Clearly historical empirical analysis, not predictive machine learning)."
-                  highlight={true}
-                />
-
-                {/* 3. Mean Bias Error */}
-                <KPICard
-                  title="Mean Bias Error (MBE)"
-                  value={
-                    summaryData.kpis.bias_mw !== null
-                      ? `${summaryData.kpis.bias_mw > 0 ? '+' : ''}${Math.round(summaryData.kpis.bias_mw).toLocaleString()}`
-                      : null
-                  }
-                  unit="MW"
-                  subtext="Systematic overforecast (procurement deficit)"
-                  tooltip="Directional forecast error (Forecast minus Actual). Positive indicates systematic overforecasting where wind underperformed, requiring thermal top-up."
-                />
-
-                {/* 4. MAE */}
-                <KPICard
-                  title="Mean Absolute Error (MAE)"
-                  value={summaryData.kpis.mae_mw}
-                  unit="MW"
-                  subtext="Average forecast deviation magnitude"
-                  tooltip="Mean Absolute Error measures the average absolute error magnitude across all evaluated hours. Lower is better."
-                />
-
-                {/* 5. Normalized MAE */}
-                <KPICard
-                  title="Normalized MAE (nMAE)"
-                  value={summaryData.kpis.nmae_pct}
-                  unit="%"
-                  subtext="Normalized by mean outturn (11.58 GW)"
-                  tooltip="MAE divided by mean actual generation (11,581 MW). Replaces MAPE to prevent infinite error distortions during calm or near-zero wind periods."
-                />
-
-                {/* 6. Overforecast Rate */}
-                <KPICard
-                  title="Overforecast Rate"
-                  value={summaryData.kpis.overforecast_rate_pct}
-                  unit="%"
-                  subtext="Share of intervals forecast > actual"
-                  tooltip="Percentage of intervals where the decision-time forecast exceeded actual physical generation. 85.1% demonstrates a pronounced structural overprediction bias."
-                />
-              </div>
-            </section>
-
-            {/* TAB 1: Overview & Selected Delivery Day View */}
-            {activeTab === 'overview' && dayDetail && (
-              <>
-                {/* Task 1: Publication-Time Transparency Banner */}
-                <div
-                  style={{
-                    backgroundColor: '#ffffff',
-                    border: '1.5px solid #000000',
-                    borderRadius: '6px',
-                    padding: '14px 18px',
-                    marginBottom: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '12px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <CheckCircle2 size={18} color="#000000" />
-                    <span style={{ fontSize: '13px', fontWeight: 600 }}>
-                      Decision Cutoff: <strong>{cutoffTime} UTC on D-1</strong> &bull; Latest Forecast Used:{' '}
-                      <strong>
-                        {latestPublishTimeUsed ? latestPublishTimeUsed.replace('T', ' ').replace('+00:00', '') : 'Verified'} UTC
-                      </strong>
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#495057' }}>
-                    Strict Zero Look-Ahead Enforced &bull; Lead times: <strong>16.5h – 39.5h</strong>
-                  </div>
-                </div>
-
-                {/* Single Day Forecast vs Actual Section */}
-                <div className="section-card">
-                  <div className="section-card-header">
-                    <div>
-                      <h2 className="section-card-title">
-                        Delivery Day Profile: {selectedDate}
-                      </h2>
-                      <p className="section-card-subtitle">
-                        Generation outturn vs decision-time forecast locked at {cutoffTime} UTC on D-1 ({selectedDate === '2026-01-01' ? '2025-12-31' : 'prior day'}).
-                      </p>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12px', flexWrap: 'wrap' }}>
-                      <div>
-                        <span style={{ color: '#6c757d' }}>Day Shortfall: </span>
-                        <strong>{Math.round(dayDetail.day_kpis.shortfall_energy_mwh ?? 0).toLocaleString()} MWh</strong>
-                      </div>
-                      <div>
-                        <span style={{ color: '#6c757d' }}>Day MAE: </span>
-                        <strong>{Math.round(dayDetail.day_kpis.mae_mw ?? 0).toLocaleString()} MW</strong>
-                      </div>
-                      <div>
-                        <span style={{ color: '#6c757d' }}>Day Bias: </span>
-                        <strong>
-                          {dayDetail.day_kpis.bias_mw !== null && dayDetail.day_kpis.bias_mw > 0 ? '+' : ''}
-                          {Math.round(dayDetail.day_kpis.bias_mw ?? 0).toLocaleString()} MW
-                        </strong>
-                      </div>
-                      <div>
-                        <span style={{ color: '#6c757d' }}>Overforecast Rate: </span>
-                        <strong>{dayDetail.day_kpis.overforecast_rate_pct?.toFixed(0)}%</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <ForecastChart
-                    intervals={dayDetail.intervals}
-                    deliveryDate={selectedDate}
-                    cutoffTime={cutoffTime}
-                  />
-                </div>
-
-                {/* Task 2: Forecast Revision Evolution View */}
-                <div style={{ marginTop: '20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#495057' }}>
-                      Inspect Forecast Evolution for Specific Target Hour:
-                    </span>
-                    <select
-                      className="control-select"
-                      value={selectedTargetTime}
-                      onChange={(e) => setSelectedTargetTime(e.target.value)}
-                    >
-                      {Array.from({ length: 24 }, (_, h) => {
-                        const hStr = String(h).padStart(2, '0');
-                        const iso = `${selectedDate}T${hStr}:00:00Z`;
-                        return (
-                          <option key={iso} value={iso}>
-                            Target {hStr}:00 UTC (Hour {h})
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  <ForecastRevisions
-                    targetTime={selectedTargetTime}
-                    cutoffTime={cutoffTime}
-                    deliveryDate={selectedDate}
-                  />
-                </div>
-
-                {/* Task 3: Largest-Error Ranked Intervals */}
-                <WorstIntervals
-                  cutoffTime={cutoffTime}
-                  onSelectDay={(dayStr) => {
-                    setSelectedDate(dayStr);
-                    setSelectedTargetTime(`${dayStr}T12:00:00Z`);
-                  }}
-                />
-              </>
-            )}
-
-            {/* TAB 2: Accuracy Breakdowns */}
-            {activeTab === 'accuracy' && accuracyData && (
-              <>
-                <AccuracyViews
-                  accuracyData={accuracyData}
-                  onSelectDay={(dayStr) => {
-                    setSelectedDate(dayStr);
-                    setSelectedTargetTime(`${dayStr}T12:00:00Z`);
-                    setActiveTab('overview');
-                  }}
-                />
-
-                <WorstIntervals
-                  cutoffTime={cutoffTime}
-                  onSelectDay={(dayStr) => {
-                    setSelectedDate(dayStr);
-                    setSelectedTargetTime(`${dayStr}T12:00:00Z`);
-                    setActiveTab('overview');
-                  }}
-                />
-              </>
-            )}
-
-            {/* TAB 3: Settlement Inspection Table */}
-            {activeTab === 'table' && dayDetail && (
-              <IntervalTable
-                intervals={dayDetail.intervals}
-                deliveryDate={selectedDate}
-                resolution={resolution}
+            {/* Page 1: Accuracy (The Evidence) */}
+            {activePage === 'accuracy' && (
+              <Page1Accuracy
+                summary={summaryData}
+                accuracy={accuracyData}
+                days={daysList}
+                selectedDate={selectedDate}
+                onSelectDate={(newDate) => {
+                  setSelectedDate(newDate);
+                  setActivePage('replay');
+                }}
+                dayDetail={dayDetail}
+                isLoadingDayDetail={loadingDayDetail}
               />
             )}
+
+            {/* Page 2: Decision Replay (The Trader's View) */}
+            {activePage === 'replay' && (
+              <Page2DecisionReplay
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
+                cutoffTime={cutoffTime}
+                dayDetail={dayDetail}
+                isLoading={loadingDayDetail}
+                days={daysList}
+                summary={summaryData}
+                demandMw={demandMw}
+                onDemandChange={setDemandMw}
+                onNavigateToPage3={() => setActivePage('buy-range')}
+              />
+            )}
+
+            {/* Page 3: Buy Range (The Recommendation) */}
+            {activePage === 'buy-range' && (
+              <Page3BuyRange
+                selectedDate={selectedDate}
+                cutoffTime={cutoffTime}
+                demandMw={demandMw}
+                onDemandChange={setDemandMw}
+                onNavigateToPage2={() => setActivePage('replay')}
+              />
+            )}
+
+            {/* Secondary Details Section (Collapsed by Default) */}
+            <DetailsSection
+              dayDetail={dayDetail}
+              selectedDate={selectedDate}
+              cutoffTime={cutoffTime}
+              summary={summaryData}
+              onSelectDay={(d) => {
+                setSelectedDate(d);
+                setActivePage('replay');
+              }}
+            />
           </>
         )}
       </main>
 
       {/* Footer */}
-      <footer style={{ borderTop: '1px solid var(--border-light)', padding: '16px 24px', fontSize: '11px', color: '#6c757d', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-        <div>
-          Data Sources: <strong>Elexon BMRS</strong> FUELHH (WIND) and WINDFOR streams. All timestamps strictly in <strong>ISO-8601 UTC (GMT)</strong>.
-        </div>
-        <div>
-          GB Day-Ahead Market Decision Support &bull; Strict Zero Look-Ahead Replay Engine &bull; Empirical P90 Reserve Sizing
+      <footer style={{ borderTop: '1px solid #e0e0e0', padding: '1.5rem 2rem', backgroundColor: '#ffffff', fontSize: '0.8rem', color: '#666666' }}>
+        <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            Data Sources: Elexon BMRS <code style={{ color: '#000000' }}>WINDFOR/stream</code> (Hourly Forecasts) and <code style={{ color: '#000000' }}>FUELHH/stream</code> (Half-Hourly WIND Actuals).
+          </div>
+          <div>
+            Replay Mode: January 2026 Delivery | Decision Cutoff: {cutoffTime} UTC (D-1) | Strict Zero Look-Ahead Bias
+          </div>
         </div>
       </footer>
     </div>
@@ -411,3 +362,4 @@ export const App: React.FC = () => {
 };
 
 export default App;
+

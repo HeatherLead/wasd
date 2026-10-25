@@ -142,3 +142,28 @@ To mathematically verify that the decision-time replay strictly prevents look-ah
   - **Explicit Half-Hour Expansion**: `_join_half_hourly` deterministically expands each hourly forecast into two 30-minute intervals (`:00` and `:30`) *prior* to joining. The merge is executed strictly on UTC `start_time` via outer join, followed by deterministic derivation of GB settlement periods ($1 \le \text{SP} \le 48$) via $\text{SP} = \text{hour} \times 2 + (\text{minute} // 30) + 1$.
   - **Timestamp Invariance**: Timestamps in both pipelines are strictly converted to UTC datetime before `.dt` access, guaranteeing full invariance to input row order, arbitrary index offsets, or non-datetime Series types.
 - **Verification**: Validated with 39 passing automated unit tests, including dedicated synthetic boundary stress tests, hand-calculated metric verification, and real January 2026 snapshot sanity checks.
+
+---
+
+## Decision 15: Recommended Buy Range Formulation & Demand as a User Input (3-Page Redesign)
+- **Context**: In wholesale Day-Ahead procurement, the trader's fundamental question is: *"How much power do I actually need to buy for each interval of tomorrow, accounting for forecast inaccuracy?"*
+- **Mathematical Formulation**:
+  1. **Signed Error Definition**:
+     $$\text{error}_i = F_i - A_i \quad (\text{positive} = \text{over-forecast / wind shortfall})$$
+  2. **Net Physical Deficit to Cover**:
+     $$\text{Need}_i = \text{Demand}_i - A_i = (\text{Demand}_i - F_i) + \text{error}_i$$
+  3. **Base Procurement Need**:
+     $$\text{BaseNeed}_i = \max(0, \text{Demand}_i - F_i)$$
+  4. **Empirical Buy Range per Half-Hour**:
+     $$\text{LowNeed}_i = \max(0, (\text{Demand}_i - F_i) + P_{10}(\text{error}))$$
+     $$\text{CentralNeed}_i = \max(0, (\text{Demand}_i - F_i) + P_{50}(\text{error}))$$
+     $$\text{HighNeed}_i = \max(0, (\text{Demand}_i - F_i) + P_{90}(\text{error}))$$
+     - Each value is clamped at $\ge 0\text{ MW}$ because a utility cannot purchase negative electricity in day-ahead wholesale auctions.
+- **Strict No Look-Ahead Rule**:
+  - For delivery day $D$, error quantiles ($P_{10}, P_{50}, P_{90}$) are computed strictly using days strictly **prior to $D$** ($t_{\text{delivery}} < D$).
+  - If fewer than 7 prior days exist in history (e.g. Jan 1 through Jan 7), the calculation safely falls back to the full-month distribution and is explicitly labelled as an `"in_sample"` estimate with the exact prior days count ($N$) displayed.
+- **Reasoning for Demand being a USER INPUT**:
+  - The client utility's consumer demand profile is private, proprietary commercial data. Public Elexon streams (`FUELHH` and `WINDFOR`) only provide national transmission-level generation actuals and forecasts—they do not publish individual retail supplier customer load.
+  - Hardcoding a fake demand number would be misleading and operationally useless.
+  - Making expected demand an explicit user input empowers the trader to plug in their portfolio's specific load expectation (or test sensitivity scenarios) and immediately view tailored procurement ranges, while leaving it empty gracefully defaults to a pure wind-generation baseline.
+

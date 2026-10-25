@@ -18,6 +18,7 @@ from app.schemas import (
     HealthResponse,
     ForecastRevisionsResponse,
     WorstIntervalsResponse,
+    BuyRangeResponse,
 )
 from app.store import data_store
 
@@ -217,4 +218,32 @@ def get_worst_intervals(
         return WorstIntervalsResponse(**worst_data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving worst intervals: {str(e)}")
+
+
+@router.get("/buy-range", response_model=BuyRangeResponse, summary="Recommended Procurement Buy Range")
+def get_buy_range(
+    date: str = Query(..., description="Delivery date (YYYY-MM-DD)", pattern=DATE_REGEX),
+    demand_mw: Optional[float] = Query(None, description="Expected consumer demand in MW"),
+    cutoff_time: str = Query("09:00", description="Cutoff time on D-1 in UTC (format HH:MM)", pattern=CUTOFF_REGEX),
+) -> BuyRangeResponse:
+    """
+    Returns recommended procurement buy range (low / central / high) per half-hour for delivery day D:
+    - Base need = demand - forecast wind
+    - Buy range per half-hour = base need + P10 error ... base need + P90 error, clamped at 0 MW
+    - Quantiles derive strictly from days BEFORE D (prior_days basis). If < 7 prior days, falls back to in_sample.
+    """
+    cutoff = validate_cutoff(cutoff_time)
+    if not re.match(DATE_REGEX, date.strip()):
+        raise HTTPException(status_code=400, detail=f"Invalid date format '{date}'. Must be 'YYYY-MM-DD'.")
+    if demand_mw is not None and demand_mw < 0:
+        raise HTTPException(status_code=400, detail="demand_mw must be non-negative (>= 0).")
+
+    try:
+        buy_range_data = data_store.get_buy_range(date_str=date.strip(), demand_mw=demand_mw, cutoff_time=cutoff)
+        return BuyRangeResponse(**buy_range_data)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error computing buy range: {str(e)}")
+
 

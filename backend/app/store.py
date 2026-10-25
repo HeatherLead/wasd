@@ -26,6 +26,8 @@ from app.metrics import (
     calculate_nmae,
     calculate_shortfall_energy_mwh,
     calculate_surplus_energy_mwh,
+    calculate_boxplot_statistics,
+    calculate_buy_range_for_intervals,
 )
 
 logger = logging.getLogger("store")
@@ -452,6 +454,8 @@ class DataStore:
         s_d = str(filtered["delivery_date"].min()) if not filtered.empty else (start_date or "2026-01-01")
         e_d = str(filtered["delivery_date"].max()) if not filtered.empty else (end_date or "2026-01-31")
 
+        box_stats = calculate_boxplot_statistics(valid["error_mw"]) if not valid.empty else None
+
         return {
             "cutoff_time": cutoff_time,
             "start_date": s_d,
@@ -465,7 +469,8 @@ class DataStore:
             "by_day": by_day,
             "by_hour_of_day": by_hour,
             "by_horizon_bucket": by_horizon,
-            "by_wind_level": by_wind_level
+            "by_wind_level": by_wind_level,
+            "box_plot": box_stats,
         }
 
     def get_forecast_revisions(
@@ -631,6 +636,109 @@ class DataStore:
             },
             "worst_overforecasts": over_list,
             "worst_underforecasts": under_list,
+        }
+
+    def get_buy_range(
+        self,
+        date_str: str,
+        demand_mw: Optional[float] = None,
+        cutoff_time: str = "09:00",
+    ) -> Dict[str, Any]:
+        """
+        Calculates recommended procurement buy range (low / central / high) per half-hour for delivery day D.
+        Enforces strict NO LOOK-AHEAD:
+        - Quantiles derive only from days BEFORE D (prior_days basis).
+        - If fewer than 7 prior days exist in history, falls back to full-period in-sample errors.
+        - Clamps all procurement needs at >= 0 MW.
+        - Missing forecasts remain null, never zero.
+        """
+        try:
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            raise ValueError(f"Invalid date format '{date_str}'. Expected 'YYYY-MM-DD'.")
+
+        df_hh = self.get_joined_dataset(cutoff_time=cutoff_time, mode="half_hourly")
+        day_df = df_hh[df_hh["delivery_date"] == target_date].sort_values("start_time").reset_index(drop=True)
+        if day_df.empty:
+            raise ValueError(f"No forecast data available for delivery day '{date_str}'. Range is January 2026.")
+
+        # Determine error distribution: strictly days BEFORE target_date (No look-ahead)
+        prior_df = df_hh[df_hh["delivery_date"] < target_date]
+        prior_valid = prior_df.dropna(subset=["forecast_generation_mw", "actual_generation_mw", "error_mw"])
+        prior_days_set = prior_valid["delivery_date"].unique()
+        prior_days_count = len(prior_days_set)
+
+        if prior_days_count >= 7:
+            basis = "prior_days"
+            hist_errors = prior_valid["error_mw"].values
+            note = f"Based on {prior_days_count} days of January 2026 history prior to {date_str}. Historical range, not a guarantee."
+        else:
+            basis = "in_sample"
+            full_valid = df_hh.dropna(subset=["forecast_generation_mw", "actual_generation_mw", "error_mw"])
+            hist_errors = full_valid["error_mw"].values
+            note = f"In-sample estimate based on all 31 days of January 2026 (fewer than 7 prior days available before {date_str}). Historical range, not a guarantee."
+
+        p10_error = float(np.percentile(hist_errors, 10))
+        p50_error = float(np.percentile(hist_errors, 50))
+        p90_error = float(np.percentile(hist_errors, 90))
+
+        forecast_vals = [
+            None if pd.isna(r["forecast_generation_mw"]) else float(r["forecast_generation_mw"])
+            for _, r in day_df.iterrows()
+        ]
+
+        intervals_calc, totals = calculate_buy_range_for_intervals(
+            forecast_values=forecast_vals,
+            demand_mw=demand_mw,
+            p10_error=p10_error,
+            p50_error=p50_error,
+            p90_error=p90_error,
+            interval_hours=0.5,
+        )
+
+        intervals_output = []
+        for (_, row), calc_item in zip(day_df.iterrows(), intervals_calc):
+            sp = int(row["settlement_period"]) if pd.notna(row.get("settlement_period")) else None
+            intervals_output.append({
+                "start_time": pd.Timestamp(row["start_time"]).isoformat(),
+                "settlement_period": sp,
+                "forecast_mw": calc_item["forecast_mw"],
+                "forecast_generation_mw": calc_item["forecast_mw"],
+                "base_need_mw": calc_item["base_need_mw"],
+                "low_need_mw": calc_item["low_need_mw"],
+                "central_need_mw": calc_item["central_need_mw"],
+                "high_need_mw": calc_item["high_need_mw"],
+            })
+
+        # Calculate actual day shortfall energy if actuals exist
+        valid_day = day_df.dropna(subset=["forecast_generation_mw", "actual_generation_mw"])
+        shortfall_mwh = (
+            calculate_shortfall_energy_mwh(valid_day["forecast_generation_mw"], valid_day["actual_generation_mw"], interval_hours=0.5)
+            if not valid_day.empty else None
+        )
+
+        return {
+            "delivery_date": date_str,
+            "cutoff_time": cutoff_time,
+            "demand_mw": demand_mw,
+            "basis": basis,
+            "prior_days_count": prior_days_count,
+            "note": note,
+            "units": {
+                "generation": "MW",
+                "error": "MW",
+                "rates": "percentage",
+                "energy": "MWh",
+                "buffer": "MW",
+            },
+            "quantiles": {
+                "p10_error_mw": round(p10_error, 2),
+                "p50_error_mw": round(p50_error, 2),
+                "p90_error_mw": round(p90_error, 2),
+            },
+            "shortfall_energy_mwh": round(shortfall_mwh, 2) if shortfall_mwh is not None else None,
+            "totals": totals,
+            "intervals": intervals_output,
         }
 
 

@@ -45,9 +45,14 @@ class KPISummary(BaseModel):
     bias_mw: Optional[float] = None
     mae_mw: Optional[float] = None
     rmse_mw: Optional[float] = None
+    normalised_mae: Optional[float] = None
     nmae_pct: Optional[float] = None
     overforecast_rate: Optional[float] = None
     overforecast_rate_pct: Optional[float] = None
+    underforecast_rate: Optional[float] = None
+    underforecast_rate_pct: Optional[float] = None
+    share_intervals_overforecast: Optional[float] = None
+    share_intervals_underforecast: Optional[float] = None
     shortfall_energy_mwh: Optional[float] = None
     surplus_energy_mwh: Optional[float] = None
     net_imbalance_energy_mwh: Optional[float] = None
@@ -150,6 +155,19 @@ class WindLevelBreakdownItem(BaseModel):
     nmae_pct: Optional[float] = None
 
 
+class BoxPlotStats(BaseModel):
+    min_mw: Optional[float] = None
+    whisker_low_mw: Optional[float] = None
+    q1_mw: Optional[float] = None
+    median_mw: Optional[float] = None
+    q3_mw: Optional[float] = None
+    whisker_high_mw: Optional[float] = None
+    max_mw: Optional[float] = None
+    iqr_mw: Optional[float] = None
+    outliers: List[float] = Field(default_factory=list)
+    sample_count: int = 0
+
+
 class AccuracyResponse(BaseModel):
     cutoff_time: str
     start_date: str
@@ -159,6 +177,50 @@ class AccuracyResponse(BaseModel):
     by_hour_of_day: List[HourOfDayBreakdownItem]
     by_horizon_bucket: List[HorizonBucketBreakdownItem]
     by_wind_level: List[WindLevelBreakdownItem]
+    box_plot: Optional[BoxPlotStats] = None
+
+
+class BuyRangeIntervalItem(BaseModel):
+    start_time: str
+    settlement_period: Optional[int] = None
+    forecast_mw: Optional[float] = None
+    forecast_generation_mw: Optional[float] = None
+    base_need_mw: Optional[float] = None
+    low_need_mw: Optional[float] = None
+    central_need_mw: Optional[float] = None
+    high_need_mw: Optional[float] = None
+
+
+class BuyRangeTotals(BaseModel):
+    forecast_total_mwh: Optional[float] = None
+    demand_total_mwh: Optional[float] = None
+    base_need_total_mwh: Optional[float] = None
+    low_need_total_mwh: Optional[float] = None
+    central_need_total_mwh: Optional[float] = None
+    high_need_total_mwh: Optional[float] = None
+    peak_high_need_mw: Optional[float] = None
+    peak_low_need_mw: Optional[float] = None
+    peak_range_mw: Optional[float] = None
+
+
+class BuyRangeQuantiles(BaseModel):
+    p10_error_mw: float
+    p50_error_mw: float
+    p90_error_mw: float
+
+
+class BuyRangeResponse(BaseModel):
+    delivery_date: str
+    cutoff_time: str
+    demand_mw: Optional[float] = None
+    basis: str  # "prior_days" or "in_sample"
+    prior_days_count: int
+    note: str
+    units: UnitsBlock = Field(default_factory=UnitsBlock)
+    quantiles: BuyRangeQuantiles
+    shortfall_energy_mwh: Optional[float] = None
+    totals: Optional[BuyRangeTotals] = None
+    intervals: List[BuyRangeIntervalItem]
 
 
 class HealthResponse(BaseModel):

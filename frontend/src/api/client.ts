@@ -39,9 +39,14 @@ export interface KPISummary {
   bias_mw: number | null;
   mae_mw: number | null;
   rmse_mw: number | null;
+  normalised_mae: number | null;
   nmae_pct: number | null;
   overforecast_rate: number | null;
   overforecast_rate_pct: number | null;
+  underforecast_rate: number | null;
+  underforecast_rate_pct: number | null;
+  share_intervals_overforecast: number | null;
+  share_intervals_underforecast: number | null;
   shortfall_energy_mwh: number | null;
   surplus_energy_mwh: number | null;
   net_imbalance_energy_mwh: number | null;
@@ -144,6 +149,19 @@ export interface WindLevelBreakdownItem {
   nmae_pct: number | null;
 }
 
+export interface BoxPlotStats {
+  min_mw: number | null;
+  whisker_low_mw: number | null;
+  q1_mw: number | null;
+  median_mw: number | null;
+  q3_mw: number | null;
+  whisker_high_mw: number | null;
+  max_mw: number | null;
+  iqr_mw: number | null;
+  outliers: number[];
+  sample_count: number;
+}
+
 export interface AccuracyResponse {
   cutoff_time: string;
   start_date: string;
@@ -153,6 +171,50 @@ export interface AccuracyResponse {
   by_hour_of_day: HourOfDayBreakdownItem[];
   by_horizon_bucket: HorizonBucketBreakdownItem[];
   by_wind_level: WindLevelBreakdownItem[];
+  box_plot?: BoxPlotStats | null;
+}
+
+export interface BuyRangeIntervalItem {
+  start_time: string;
+  settlement_period: number | null;
+  forecast_mw: number | null;
+  forecast_generation_mw: number | null;
+  base_need_mw: number | null;
+  low_need_mw: number | null;
+  central_need_mw: number | null;
+  high_need_mw: number | null;
+}
+
+export interface BuyRangeTotals {
+  forecast_total_mwh: number | null;
+  demand_total_mwh: number | null;
+  base_need_total_mwh: number | null;
+  low_need_total_mwh: number | null;
+  central_need_total_mwh: number | null;
+  high_need_total_mwh: number | null;
+  peak_high_need_mw: number | null;
+  peak_low_need_mw: number | null;
+  peak_range_mw: number | null;
+}
+
+export interface BuyRangeQuantiles {
+  p10_error_mw: number;
+  p50_error_mw: number;
+  p90_error_mw: number;
+}
+
+export interface BuyRangeResponse {
+  delivery_date: string;
+  cutoff_time: string;
+  demand_mw: number | null;
+  basis: 'prior_days' | 'in_sample';
+  prior_days_count: number;
+  note: string;
+  units: UnitsBlock;
+  quantiles: BuyRangeQuantiles;
+  shortfall_energy_mwh: number | null;
+  totals: BuyRangeTotals | null;
+  intervals: BuyRangeIntervalItem[];
 }
 
 export interface HealthResponse {
@@ -287,4 +349,12 @@ export const apiClient = {
       end_date: endDate,
       top_n: String(topN),
     }),
+
+  getBuyRange: (date: string, demandMw?: number, cutoffTime = '09:00') =>
+    fetchJson<BuyRangeResponse>(`${BASE_URL}/buy-range`, {
+      date,
+      demand_mw: demandMw !== undefined ? String(demandMw) : undefined,
+      cutoff_time: cutoffTime,
+    }),
 };
+
