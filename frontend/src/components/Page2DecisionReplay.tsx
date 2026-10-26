@@ -1,413 +1,753 @@
 /**
  * frontend/src/components/Page2DecisionReplay.tsx
- * Page 2: Decision Replay (The Trader's View)
- * Core Question: "On D-1 at the cutoff, what did the trader see for delivery day D?"
+ * Page 2: Day-Ahead Wind Forecast and Downside Risk (Decision Replay)
+ *
+ * Core Question:
+ * "For delivery day D, what wind forecast was available at the decision cutoff,
+ *  how far could actual wind plausibly differ from it, and where is the downside risk?"
  *
  * Rules:
- * - Delivery day picker.
- * - Banner: "Cutoff: <datetime UTC>. Latest forecast used: published <publishTime>."
- * - Chart: forecast wind for each half-hour of D.
- * - "Reveal what actually happened" toggle (OFF by default).
- * - User input field: "Your expected demand (MW)" (starts empty, clearly labelled as entered by user).
- * - When filled: shows residual to cover (demand - forecast) per half-hour and daily total MWh.
- * - Context line from history: "Forecasts were too high X% of the time".
+ * - Wind supply uncertainty ONLY (no demand or buy quantities).
+ * - Strictly empirical error quantiles from prior days (no ML, no look-ahead).
+ * - Clean, calm, fast layout: status strip, main forecast & plausible band chart,
+ *   half-hourly shortfall risk concentration chart, and interval details with CSV export.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
+  BarChart,
+  Bar,
   Line,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
   Legend,
   CartesianGrid,
-  ReferenceLine,
 } from 'recharts';
-import type { DayDetailResponse, DaySummaryItem, SummaryResponse } from '../api/client';
-import { Eye, EyeOff, Calendar } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  TrendingUp,
+  TrendingDown,
+  Info,
+} from 'lucide-react';
+import { apiClient } from '../api/client';
+import type { DayAheadScheduleResponse } from '../api/client';
 import { PRIMARY_COLOR } from '../theme';
-import { formatDate } from '../utils/date';
-import { CustomDropdown } from './CustomDropdown';
 
-interface Page2DecisionReplayProps {
+interface Page2Props {
   selectedDate: string;
-  onSelectDate: (date: string) => void;
+  onSelectDate?: (date: string) => void;
   cutoffTime: string;
-  dayDetail: DayDetailResponse | null;
-  isLoading: boolean;
-  days: DaySummaryItem[];
-  summary: SummaryResponse | null;
-  demandMw: number | null;
-  onDemandChange: (val: number | null) => void;
-  onNavigateToPage3?: () => void;
 }
 
-export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
+export const Page2DecisionReplay: React.FC<Page2Props> = ({
   selectedDate,
-  onSelectDate,
-  cutoffTime: _cutoffTime,
-  dayDetail,
-  isLoading,
-  days,
-  summary: _summary,
-  demandMw,
-  onDemandChange,
-  onNavigateToPage3,
+  cutoffTime,
 }) => {
-  const [revealActuals, setRevealActuals] = useState(false);
-  const [demandInput, setDemandInput] = useState<string>(demandMw ? String(demandMw) : '');
+  // Page 2 State
+  const [coverage, setCoverage] = useState<number>(0.80);
 
-  // Handle user demand submit
-  const handleDemandBlurOrSubmit = () => {
-    const parsed = parseFloat(demandInput);
-    if (!isNaN(parsed) && parsed > 0) {
-      onDemandChange(parsed);
-    } else if (demandInput.trim() === '') {
-      onDemandChange(null);
+  // API Data
+  const [data, setData] = useState<DayAheadScheduleResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Collapsed interval table
+  const [tableOpen, setTableOpen] = useState<boolean>(false);
+
+  // Fetch Day-Ahead Data (strictly prior days history)
+  const fetchDayAhead = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiClient.getDayAhead(
+        selectedDate,
+        cutoffTime,
+        coverage,
+        undefined,
+        false,
+        28
+      );
+      setData(res);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load day-ahead forecast uncertainty.');
+    } finally {
+      setLoading(false);
     }
+  }, [selectedDate, cutoffTime, coverage]);
+
+  useEffect(() => {
+    fetchDayAhead();
+  }, [fetchDayAhead]);
+
+  // CSV Export
+  const handleExportCSV = () => {
+    if (!data || !data.intervals.length) return;
+    const headers = [
+      'Settlement Period',
+      'Start Time (UTC)',
+      'Forecast (MW)',
+      'Actual Low (MW)',
+      'Actual High (MW)',
+      'Shortfall Prob P(error > T)',
+      'Horizon (hours)',
+      'Basis',
+      'Sample Size',
+    ];
+
+    const rows = data.intervals.map((it) => [
+      it.settlement_period ?? '',
+      it.start_time ?? '',
+      it.forecast_mw ?? '',
+      it.actual_low_mw ?? '',
+      it.actual_high_mw ?? '',
+      it.p_shortfall_gt_threshold !== null ? (it.p_shortfall_gt_threshold * 100).toFixed(1) + '%' : '',
+      it.horizon_hours ?? '',
+      it.basis ?? '',
+      it.sample_size,
+    ]);
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `wind_forecast_uncertainty_${selectedDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  // Compute chart intervals and residual needs
-  const intervals = dayDetail?.intervals ?? [];
-  const chartData = intervals.map((item) => {
-    const timeLabel = item.start_time.slice(11, 16);
-    const fMw = item.forecast_generation_mw ?? null;
-    const aMw = item.actual_generation_mw ?? null;
+  // Expected actual calculations based on historical bias and intraday trends
+  const actualEstimates = useMemo(() => {
+    if (!data || !data.intervals.length) return null;
+    const validIntervals = data.intervals.filter((it) => it.forecast_mw !== null);
+    if (!validIntervals.length) return null;
 
-    let residualNeedMw: number | null = null;
-    if (demandMw !== null && fMw !== null) {
-      residualNeedMw = Math.max(0, demandMw - fMw);
+    const avgForecast = validIntervals.reduce((acc, it) => acc + (it.forecast_mw || 0), 0) / validIntervals.length;
+    const avgLow = validIntervals.reduce((acc, it) => acc + (it.actual_low_mw || 0), 0) / validIntervals.length;
+    const avgHigh = validIntervals.reduce((acc, it) => acc + (it.actual_high_mw || 0), 0) / validIntervals.length;
+
+    const bias = data.risk_summary.expected_bias_mw ?? 0;
+    // Bias-adjusted expected actual: Forecast - Historical Bias
+    const expectedActual = Math.max(0, avgForecast - bias);
+
+    // Peak & trough intervals
+    let peakIt = validIntervals[0];
+    let troughIt = validIntervals[0];
+    for (const it of validIntervals) {
+      if ((it.forecast_mw ?? 0) > (peakIt.forecast_mw ?? 0)) peakIt = it;
+      if ((it.forecast_mw ?? 0) < (troughIt.forecast_mw ?? 0)) troughIt = it;
     }
 
+    // Trend trajectory (overnight vs afternoon/evening)
+    const firstQuarterAvg = validIntervals.slice(0, 12).reduce((acc, it) => acc + (it.forecast_mw || 0), 0) / 12;
+    const lastQuarterAvg = validIntervals.slice(-12).reduce((acc, it) => acc + (it.forecast_mw || 0), 0) / 12;
+    const diff = lastQuarterAvg - firstQuarterAvg;
+
+    let trendType: 'up' | 'down' | 'flat' = 'flat';
+    let trendLabel = 'Stable across the 24-hour delivery schedule';
+    if (diff > 800) {
+      trendType = 'up';
+      trendLabel = `Ramping upward (+${Math.round(diff).toLocaleString()} MW from early morning to late evening)`;
+    } else if (diff < -800) {
+      trendType = 'down';
+      trendLabel = `Declining downward (-${Math.round(Math.abs(diff)).toLocaleString()} MW from early morning to late evening)`;
+    }
+
+    const totalForecastMWh = (avgForecast * validIntervals.length) / 2;
+    const totalExpectedMWh = (expectedActual * validIntervals.length) / 2;
+    const totalPlausibleLowMWh = (avgLow * validIntervals.length) / 2;
+    const totalPlausibleHighMWh = (avgHigh * validIntervals.length) / 2;
+
     return {
-      time: timeLabel,
-      period: item.settlement_period,
-      forecastMw: fMw,
-      actualMw: aMw,
-      demandMw: demandMw,
-      residualNeedMw: residualNeedMw,
-      errorMw: fMw !== null && aMw !== null ? fMw - aMw : null,
+      avgForecast,
+      avgLow,
+      avgHigh,
+      bias,
+      expectedActual,
+      totalForecastMWh,
+      totalExpectedMWh,
+      totalPlausibleLowMWh,
+      totalPlausibleHighMWh,
+      peakIt,
+      troughIt,
+      trendType,
+      trendLabel,
     };
-  });
+  }, [data]);
 
-  // Calculate daily totals in MWh
-  const validForecasts = intervals.filter((i) => i.forecast_generation_mw !== null);
-  const totalForecastMwh = validForecasts.reduce((acc, i) => acc + (i.forecast_generation_mw ?? 0) * 0.5, 0);
+  // Chart data preparation
+  const chartData = useMemo(() => {
+    if (!data) return [];
+    return data.intervals.map((it) => {
+      const timeStr = it.start_time ? it.start_time.slice(11, 16) : `SP${it.settlement_period}`;
+      const fMw = it.forecast_mw;
+      const lowMw = it.actual_low_mw;
+      const highMw = it.actual_high_mw;
+      const bandWidth = lowMw !== null && highMw !== null ? Math.max(0, highMw - lowMw) : 0;
+      const pShortfallPct = it.p_shortfall_gt_threshold !== null ? it.p_shortfall_gt_threshold * 100 : null;
 
-  let totalDemandMwh: number | null = null;
-  let totalResidualMwh: number | null = null;
-  if (demandMw !== null) {
-    totalDemandMwh = demandMw * 24;
-    totalResidualMwh = chartData.reduce((acc, item) => acc + (item.residualNeedMw ?? 0) * 0.5, 0);
-  }
+      return {
+        time: timeStr,
+        period: it.settlement_period,
+        start_time: it.start_time,
+        forecast_mw: fMw,
+        actual_low_mw: lowMw,
+        actual_high_mw: highMw,
+        band_base: lowMw,
+        band_width: bandWidth,
+        p_shortfall_pct: pShortfallPct,
+        p_shortfall_raw: it.p_shortfall_gt_threshold,
+        publish_time: it.publish_time,
+        horizon_hours: it.horizon_hours,
+        basis: it.basis,
+        sample_size: it.sample_size,
+      };
+    });
+  }, [data]);
 
   return (
-    <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
-      {/* 1. Header & Delivery Day Picker */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 600, color: '#000000' }}>
-            Decision Replay — {formatDate(selectedDate)}
-          </h2>
-          <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: '#666666' }}>
-            Replay the exact decision moment before wholesale auction gate closure.
-          </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+
+      {/* ERROR BANNER */}
+      {error && (
+        <div style={{ padding: '1rem', border: '1px solid #d32f2f', backgroundColor: '#ffebee', color: '#d32f2f' }}>
+          {error}
         </div>
+      )}
 
-        {/* Date Selector */}
-        <CustomDropdown
-          labelPrefix="Delivery Day D"
-          icon={<Calendar size={14} color={PRIMARY_COLOR} />}
-          options={days.map((d) => ({
-            value: d.delivery_date,
-            label: formatDate(d.delivery_date),
-          }))}
-          value={selectedDate}
-          onChange={(val) => onSelectDate(val)}
-        />
-      </div>
+      {/* LOADING STATE */}
+      {loading && !data && (
+        <div style={{ padding: '4rem', textAlign: 'center', color: '#666666', border: '1px solid #e0e0e0' }}>
+          Evaluating empirical error quantiles and downside risk...
+        </div>
+      )}
 
-      {/* 3. Demand Input Field & Reveal Toggle Controls */}
-      <section
-        style={{
-          background: '#ffffff',
-          border: '1px solid #e0e0e0',
-          padding: '1.25rem',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '1.5rem',
-          alignItems: 'center',
-        }}
-      >
-        {/* User Demand Input */}
-        <div>
-          <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 600, color: '#000000', marginBottom: '0.35rem' }}>
-            Your expected demand (MW)
-          </label>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <input
-              type="number"
-              min="0"
-              step="100"
-              placeholder="e.g. 10000"
-              value={demandInput}
-              onChange={(e) => setDemandInput(e.target.value)}
-              onBlur={handleDemandBlurOrSubmit}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleDemandBlurOrSubmit();
-              }}
+      {data && (
+        <>
+          {/* 2. MAIN CHART: FORECAST WIND & PLAUSIBLE ACTUAL BAND */}
+          <div
+            style={{
+              border: '1px solid #d0d0d0',
+              backgroundColor: '#ffffff',
+              padding: '1.5rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#000000' }}>
+                  Day-Ahead Wind Forecast & Plausible Actual Range
+                </h2>
+                <div style={{ fontSize: '0.8rem', color: '#666666', marginTop: '0.2rem' }}>
+                  Empirical error quantiles derived strictly from {data.basis_metadata.prior_days_count} prior days' decision-time errors.
+                </div>
+              </div>
+
+              {/* Chart Controls: Coverage Toggle (80% vs 90%) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'inline-flex', border: '1px solid #000000' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCoverage(0.80)}
+                    style={{
+                      padding: '0.35rem 0.75rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      backgroundColor: coverage === 0.80 ? '#000000' : '#ffffff',
+                      color: coverage === 0.80 ? '#ffffff' : '#000000',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    80% Band
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCoverage(0.90)}
+                    style={{
+                      padding: '0.35rem 0.75rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      backgroundColor: coverage === 0.90 ? '#000000' : '#ffffff',
+                      color: coverage === 0.90 ? '#ffffff' : '#000000',
+                      border: 'none',
+                      borderLeft: '1px solid #000000',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    90% Band
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Recharts Area */}
+            <div style={{ height: '380px', width: '100%' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 15, right: 25, bottom: 25, left: 15 }}>
+                  <CartesianGrid stroke="#f0f0f0" strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="time"
+                    tick={{ fontSize: 11, fill: '#666666' }}
+                    tickLine={{ stroke: '#cccccc' }}
+                    axisLine={{ stroke: '#cccccc' }}
+                    interval={3}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#666666' }}
+                    tickLine={{ stroke: '#cccccc' }}
+                    axisLine={{ stroke: '#cccccc' }}
+                    tickFormatter={(val) => `${val.toLocaleString()} MW`}
+                    domain={[0, 'auto']}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div
+                          style={{
+                            backgroundColor: '#ffffff',
+                            border: '1px solid #000000',
+                            padding: '0.75rem 1rem',
+                            fontSize: '0.8rem',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                          }}
+                        >
+                          <div style={{ fontWeight: 700, marginBottom: '0.35rem', borderBottom: '1px solid #eee', paddingBottom: '0.25rem' }}>
+                            SP {d.period} ({d.time} UTC)
+                          </div>
+                          <div>
+                            Forecast Wind: <strong>{d.forecast_mw?.toLocaleString()} MW</strong>
+                          </div>
+                          <div style={{ color: PRIMARY_COLOR, marginTop: '0.2rem' }}>
+                            Plausible Range ({Math.round(coverage * 100)}%):{' '}
+                            <strong>
+                              {d.actual_low_mw?.toLocaleString()} – {d.actual_high_mw?.toLocaleString()} MW
+                            </strong>
+                          </div>
+                          <div style={{ color: '#666666', marginTop: '0.2rem', fontSize: '0.75rem' }}>
+                            Horizon: {d.horizon_hours}h | Basis: {d.basis} ({d.sample_size} samples)
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="top"
+                    align="right"
+                    content={() => (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1.5rem', fontSize: '0.8rem', paddingBottom: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ width: '18px', height: '3px', backgroundColor: '#000000', display: 'inline-block' }} />
+                          <span style={{ color: '#111111', fontWeight: 600 }}>Forecast Wind (Baseline)</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span
+                            style={{
+                              width: '16px',
+                              height: '12px',
+                              backgroundColor: 'rgba(20, 137, 55, 0.3)',
+                              border: `1.5px dashed ${PRIMARY_COLOR}`,
+                              display: 'inline-block',
+                              borderRadius: '1px',
+                            }}
+                          />
+                          <span style={{ color: '#111111', fontWeight: 600 }}>
+                            Plausible Actual Band ({Math.round(coverage * 100)}% empirical)
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  />
+
+                  {/* Shaded Empirical Quantile Band */}
+                  <Area
+                    type="monotone"
+                    dataKey="band_base"
+                    stackId="1"
+                    fill="transparent"
+                    stroke="none"
+                    legendType="none"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="band_width"
+                    stackId="1"
+                    fill="rgba(20, 137, 55, 0.16)"
+                    stroke="none"
+                    name={`Plausible Actual Band (${Math.round(coverage * 100)}% empirical)`}
+                  />
+
+                  {/* Quantile Boundary Dashes */}
+                  <Line
+                    type="monotone"
+                    dataKey="actual_low_mw"
+                    stroke={PRIMARY_COLOR}
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    dot={false}
+                    legendType="none"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="actual_high_mw"
+                    stroke={PRIMARY_COLOR}
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    dot={false}
+                    legendType="none"
+                  />
+
+                  {/* Central Line: Forecast Wind */}
+                  <Line
+                    type="monotone"
+                    dataKey="forecast_mw"
+                    stroke="#000000"
+                    strokeWidth={2.5}
+                    dot={false}
+                    name="Forecast Wind (Baseline)"
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* EXPECTED ACTUAL VALUE & TREND ASSESSMENT CARD */}
+          {actualEstimates && (
+            <div
               style={{
-                width: '160px',
-                padding: '0.45rem 0.75rem',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                border: '1px solid #000000',
+                border: '1px solid #d0d0d0',
                 backgroundColor: '#ffffff',
-                color: '#000000',
-              }}
-            />
-            <button
-              type="button"
-              onClick={handleDemandBlurOrSubmit}
-              style={{
-                padding: '0.45rem 0.85rem',
-                backgroundColor: PRIMARY_COLOR,
-                color: '#ffffff',
-                border: `1px solid ${PRIMARY_COLOR}`,
-                borderRadius: '4px',
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
+                padding: '1.25rem 1.5rem',
               }}
             >
-              Apply
-            </button>
-            {demandMw !== null && (
+              {/* Card Header */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                  paddingBottom: '0.85rem',
+                  borderBottom: '1px solid #eeeeee',
+                  marginBottom: '1rem',
+                }}
+              >
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#000000' }}>
+                    Expected Actual Wind Generation & Downside Assessment
+                  </h3>
+                  <div style={{ fontSize: '0.75rem', color: '#666666', marginTop: '0.2rem' }}>
+                    Calculated from empirical forecast error bias and quantile spreads over prior {data.basis_metadata.prior_days_count} days
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.75rem',
+                    backgroundColor: '#f5f5f5',
+                    padding: '0.35rem 0.65rem',
+                    borderRadius: '2px',
+                    border: '1px solid #e0e0e0',
+                  }}
+                >
+                  <Info size={14} color="#666666" />
+                  <span>
+                    Historical Model Bias:{' '}
+                    <strong>
+                      {actualEstimates.bias >= 0 ? '+' : ''}
+                      {Math.round(actualEstimates.bias).toLocaleString()} MW
+                    </strong>{' '}
+                    ({actualEstimates.bias >= 0 ? 'over-forecast tendency' : 'under-forecast tendency'})
+                  </span>
+                </div>
+              </div>
+
+              {/* 3-Column Metric Grid */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '1rem',
+                  marginBottom: '1.25rem',
+                }}
+              >
+                {/* 1. Raw Forecast Baseline */}
+                <div style={{ border: '1px solid #e0e0e0', padding: '1rem', backgroundColor: '#fafafa' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#666666', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.04em' }}>
+                    Published Forecast (Baseline)
+                  </div>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#000000', margin: '0.3rem 0' }}>
+                    {Math.round(actualEstimates.avgForecast).toLocaleString()} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>MW avg</span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#555555' }}>
+                    Total: <strong>{Math.round(actualEstimates.totalForecastMWh).toLocaleString()} MWh</strong>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#888888', marginTop: '0.4rem' }}>
+                    Raw day-ahead model output before uncertainty adjustment
+                  </div>
+                </div>
+
+                {/* 2. Expected Actual Value (Bias-Adjusted) */}
+                <div
+                  style={{
+                    border: `1.5px solid ${PRIMARY_COLOR}`,
+                    padding: '1rem',
+                    backgroundColor: 'rgba(20, 137, 55, 0.03)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: PRIMARY_COLOR, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
+                      Calculated Expected Actual
+                    </div>
+                    <span style={{ fontSize: '0.65rem', backgroundColor: PRIMARY_COLOR, color: '#ffffff', padding: '1px 5px', fontWeight: 600 }}>
+                      BIAS-ADJUSTED
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#000000', margin: '0.3rem 0' }}>
+                    {Math.round(actualEstimates.expectedActual).toLocaleString()} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>MW avg</span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#555555' }}>
+                    Total: <strong>{Math.round(actualEstimates.totalExpectedMWh).toLocaleString()} MWh</strong>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#666666', marginTop: '0.4rem' }}>
+                    Forecast corrected for {actualEstimates.bias >= 0 ? '+' : ''}{Math.round(actualEstimates.bias).toLocaleString()} MW historical over-prediction
+                  </div>
+                </div>
+
+                {/* 3. Plausible Actual Range */}
+                <div style={{ border: '1px solid #e0e0e0', padding: '1rem', backgroundColor: '#fafafa' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#666666', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.04em' }}>
+                    Plausible Actual Range ({Math.round(coverage * 100)}%)
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#000000', margin: '0.3rem 0' }}>
+                    {Math.round(actualEstimates.avgLow).toLocaleString()} – {Math.round(actualEstimates.avgHigh).toLocaleString()}{' '}
+                    <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>MW</span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#555555' }}>
+                    Total: <strong>{Math.round(actualEstimates.totalPlausibleLowMWh).toLocaleString()}</strong> – <strong>{Math.round(actualEstimates.totalPlausibleHighMWh).toLocaleString()} MWh</strong>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#888888', marginTop: '0.4rem' }}>
+                    Spread of {Math.round(actualEstimates.avgHigh - actualEstimates.avgLow).toLocaleString()} MW between P{Math.round(((1 - coverage) / 2) * 100)} and P{Math.round((1 - (1 - coverage) / 2) * 100)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Intraday Trend & Ramp Analysis */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  padding: '0.85rem 1rem',
+                  backgroundColor: '#f9f9f9',
+                  border: '1px solid #e6e6e6',
+                  fontSize: '0.8rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#111111' }}>
+                  {actualEstimates.trendType === 'up' && <TrendingUp size={16} color={PRIMARY_COLOR} />}
+                  {actualEstimates.trendType === 'down' && <TrendingDown size={16} color="#d32f2f" />}
+                  <span>Generation Trajectory & Profile:</span>
+                  <span style={{ fontWeight: 400, color: '#555555' }}>{actualEstimates.trendLabel}</span>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', color: '#444444', fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                  <div>
+                    Peak Forecast Generation:{' '}
+                    <strong>
+                      SP {actualEstimates.peakIt.settlement_period} ({actualEstimates.peakIt.start_time?.slice(11, 16)} UTC)
+                    </strong>{' '}
+                    at <strong>{Math.round(actualEstimates.peakIt.forecast_mw ?? 0).toLocaleString()} MW</strong> (Plausible:{' '}
+                    {Math.round(actualEstimates.peakIt.actual_low_mw ?? 0).toLocaleString()} –{' '}
+                    {Math.round(actualEstimates.peakIt.actual_high_mw ?? 0).toLocaleString()} MW)
+                  </div>
+                  <div>
+                    Minimum Forecast Generation:{' '}
+                    <strong>
+                      SP {actualEstimates.troughIt.settlement_period} ({actualEstimates.troughIt.start_time?.slice(11, 16)} UTC)
+                    </strong>{' '}
+                    at <strong>{Math.round(actualEstimates.troughIt.forecast_mw ?? 0).toLocaleString()} MW</strong> (Plausible:{' '}
+                    {Math.round(actualEstimates.troughIt.actual_low_mw ?? 0).toLocaleString()} –{' '}
+                    {Math.round(actualEstimates.troughIt.actual_high_mw ?? 0).toLocaleString()} MW)
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3. SECONDARY CHART: SHORTFALL PROBABILITY BY HALF-HOUR */}
+          <div
+            style={{
+              border: '1px solid #d0d0d0',
+              backgroundColor: '#ffffff',
+              padding: '1.25rem 1.5rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#000000' }}>
+                  Shortfall Risk Concentration Across Half-Hours
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: '#666666' }}>
+                  P(Shortfall &gt; {Math.round(data.risk_summary.threshold_mw).toLocaleString()} MW) per target settlement period
+                </span>
+              </div>
+              <span style={{ fontSize: '0.75rem', color: '#666666' }}>
+                Threshold: <strong>{Math.round(data.risk_summary.threshold_mw).toLocaleString()} MW (Historical MAE)</strong>
+              </span>
+            </div>
+
+            <div style={{ height: '180px', width: '100%' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 10, right: 25, bottom: 20, left: 15 }}>
+                  <CartesianGrid stroke="#f5f5f5" vertical={false} />
+                  <XAxis
+                    dataKey="time"
+                    tick={{ fontSize: 10, fill: '#666666' }}
+                    tickLine={{ stroke: '#cccccc' }}
+                    axisLine={{ stroke: '#cccccc' }}
+                    interval={3}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: '#666666' }}
+                    tickLine={{ stroke: '#cccccc' }}
+                    axisLine={{ stroke: '#cccccc' }}
+                    tickFormatter={(val) => `${val}%`}
+                    domain={[0, 100]}
+                  />
+                  <Tooltip
+                    formatter={(val: any) => [`${Number(val).toFixed(1)}%`, 'Shortfall Prob']}
+                    labelFormatter={(lbl) => `Time: ${lbl} UTC`}
+                    contentStyle={{ fontSize: '0.8rem', border: '1px solid #000' }}
+                  />
+                  <Bar dataKey="p_shortfall_pct" fill={PRIMARY_COLOR} name="Shortfall Probability" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* 4. COLLAPSED "INTERVAL DETAILS" TABLE WITH EXPORT TO CSV */}
+          <div style={{ border: '1px solid #d0d0d0', backgroundColor: '#ffffff' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '0.85rem 1.25rem',
+                backgroundColor: '#fafafa',
+              }}
+            >
               <button
                 type="button"
-                onClick={() => {
-                  setDemandInput('');
-                  onDemandChange(null);
-                }}
+                onClick={() => setTableOpen(!tableOpen)}
                 style={{
-                  padding: '0.45rem 0.65rem',
-                  backgroundColor: '#ffffff',
-                  color: '#666666',
-                  border: '1px solid #cccccc',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  padding: 0,
+                }}
+              >
+                {tableOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                <span>Interval Details (48 Settlement Periods)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.35rem 0.75rem',
                   fontSize: '0.8rem',
+                  fontWeight: 600,
+                  backgroundColor: '#ffffff',
+                  color: '#000000',
+                  border: '1px solid #000000',
                   cursor: 'pointer',
                 }}
               >
-                Clear
+                <Download size={14} />
+                Export CSV
               </button>
-            )}
-          </div>
-          <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.75rem', color: '#666666' }}>
-            Demand is entered by you. It is not part of the Elexon data.
-          </p>
-        </div>
-
-        {/* Reveal Toggle */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#000000', marginBottom: '0.35rem' }}>
-            Replay Verification
-          </span>
-          <button
-            type="button"
-            onClick={() => setRevealActuals(!revealActuals)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              backgroundColor: revealActuals ? PRIMARY_COLOR : '#ffffff',
-              color: revealActuals ? '#ffffff' : '#000000',
-              border: `1px solid ${revealActuals ? PRIMARY_COLOR : '#000000'}`,
-              borderRadius: '4px',
-              cursor: 'pointer',
-              transition: 'background-color 0.15s ease',
-            }}
-          >
-            {revealActuals ? <EyeOff size={16} /> : <Eye size={16} />}
-            {revealActuals ? 'Hide What Actually Happened' : 'Reveal What Actually Happened'}
-          </button>
-          <span style={{ fontSize: '0.75rem', color: '#666666', marginTop: '0.35rem' }}>
-            {revealActuals ? 'Outturn revealed for post-trade evaluation.' : 'Actual wind is hidden to simulate the real decision moment.'}
-          </span>
-        </div>
-      </section>
-
-      {/* 4. Main Decision Replay Chart */}
-      <section style={{ background: '#ffffff', border: '1px solid #e0e0e0', padding: '1.25rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#000000' }}>
-              Day D Half-Hourly Wind & Procurement Schedule ({formatDate(selectedDate)})
-            </h3>
-            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#666666' }}>
-              {demandMw !== null
-                ? `Expected demand set to ${demandMw.toLocaleString()} MW. Shaded area represents base need to buy.`
-                : 'Wind-only view available at decision cutoff (09:00 UTC D-1). Enter demand above to see procurement deficit.'}
-            </p>
-          </div>
-
-          {/* Quick summary readouts */}
-          <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.85rem' }}>
-            <div>
-              <span style={{ color: '#666666' }}>Forecast Wind Energy: </span>
-              <strong>{totalForecastMwh.toLocaleString(undefined, { maximumFractionDigits: 0 })} MWh</strong>
             </div>
-            {demandMw !== null && totalDemandMwh !== null && (
-              <div>
-                <span style={{ color: '#666666' }}>Expected Demand: </span>
-                <strong>{totalDemandMwh.toLocaleString(undefined, { maximumFractionDigits: 0 })} MWh</strong>
-              </div>
-            )}
-            {demandMw !== null && totalResidualMwh !== null && (
-              <div>
-                <span style={{ color: '#666666' }}>Base Need to Buy: </span>
-                <strong style={{ color: '#000000' }}>{totalResidualMwh.toLocaleString(undefined, { maximumFractionDigits: 0 })} MWh</strong>
+
+            {tableOpen && (
+              <div style={{ overflowX: 'auto', borderTop: '1px solid #e0e0e0' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f5f5f5', textAlign: 'left', borderBottom: '1px solid #d0d0d0' }}>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>SP</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Time (UTC)</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Forecast (MW)</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Plausible Low (MW)</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Plausible High (MW)</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>P(Shortfall &gt; T)</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Lead Time</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Basis</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.intervals.map((it) => (
+                      <tr key={it.settlement_period} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '0.55rem 0.75rem', fontWeight: 600 }}>{it.settlement_period}</td>
+                        <td style={{ padding: '0.55rem 0.75rem' }}>{it.start_time?.slice(11, 16)}</td>
+                        <td style={{ padding: '0.55rem 0.75rem', fontWeight: 600 }}>
+                          {it.forecast_mw?.toLocaleString()} MW
+                        </td>
+                        <td style={{ padding: '0.55rem 0.75rem', color: PRIMARY_COLOR }}>
+                          {it.actual_low_mw?.toLocaleString()} MW
+                        </td>
+                        <td style={{ padding: '0.55rem 0.75rem', color: PRIMARY_COLOR }}>
+                          {it.actual_high_mw?.toLocaleString()} MW
+                        </td>
+                        <td style={{ padding: '0.55rem 0.75rem' }}>
+                          {it.p_shortfall_gt_threshold !== null
+                            ? (it.p_shortfall_gt_threshold * 100).toFixed(1) + '%'
+                            : 'N/A'}
+                        </td>
+                        <td style={{ padding: '0.55rem 0.75rem', color: '#666' }}>{it.horizon_hours}h</td>
+                        <td style={{ padding: '0.55rem 0.75rem' }}>
+                          <span
+                            style={{
+                              padding: '0.1rem 0.35rem',
+                              fontSize: '0.7rem',
+                              borderRadius: '2px',
+                              backgroundColor: it.basis === 'block' ? '#e8f5e9' : '#fff3e0',
+                              color: it.basis === 'block' ? PRIMARY_COLOR : '#e65100',
+                            }}
+                          >
+                            {it.basis} ({it.sample_size})
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
-        </div>
-
-        <div style={{ height: '360px', width: '100%' }}>
-          {isLoading ? (
-            <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#666666', fontSize: '0.9rem' }}>
-              Loading decision replay data...
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 15, right: 25, left: 10, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eeeeee" />
-                <XAxis
-                  dataKey="time"
-                  stroke="#333333"
-                  fontSize={11}
-                  tickLine={false}
-                  label={{ value: 'Target Settlement Time (UTC)', position: 'insideBottom', offset: -10, fontSize: 11, fill: '#666666' }}
-                />
-                <YAxis
-                  stroke="#333333"
-                  fontSize={11}
-                  tickLine={false}
-                  label={{ value: 'Power (MW)', angle: -90, position: 'insideLeft', offset: 15, fontSize: 11, fill: '#666666' }}
-                />
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload || !payload.length) return null;
-                    const fVal = payload.find((p) => p.dataKey === 'forecastMw')?.value as number;
-                    const aVal = payload.find((p) => p.dataKey === 'actualMw')?.value as number;
-                    const resVal = payload.find((p) => p.dataKey === 'residualNeedMw')?.value as number;
-                    return (
-                      <div style={{ backgroundColor: '#ffffff', border: '1px solid #000000', padding: '0.6rem 0.8rem', fontSize: '0.8rem', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }}>
-                        <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{formatDate(selectedDate)} @ {label} UTC</div>
-                        <div style={{ color: PRIMARY_COLOR, fontWeight: 600 }}>Forecast Wind: <strong>{fVal !== null && fVal !== undefined ? `${fVal.toLocaleString()} MW` : '—'}</strong></div>
-                        {demandMw !== null && (
-                          <div>Demand Target: <strong>{demandMw.toLocaleString()} MW</strong></div>
-                        )}
-                        {resVal !== null && resVal !== undefined && (
-                          <div style={{ color: '#000000', fontWeight: 600 }}>
-                            Base Need to Buy: <strong>{resVal.toLocaleString()} MW</strong>
-                          </div>
-                        )}
-                        {revealActuals && aVal !== null && aVal !== undefined && (
-                          <div style={{ marginTop: '0.3rem', paddingTop: '0.3rem', borderTop: '1px solid #e0e0e0', color: '#555555' }}>
-                            Actual Delivered Wind: <strong>{aVal.toLocaleString()} MW</strong>
-                            {fVal !== null && (
-                              <div style={{ fontWeight: 600, color: fVal > aVal ? '#000000' : '#444444' }}>
-                                Deficit / Error: {fVal > aVal ? `+${(fVal - aVal).toLocaleString()} MW (Shortfall)` : `${(fVal - aVal).toLocaleString()} MW (Surplus)`}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }}
-                />
-                <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '10px', fontSize: '12px' }} />
-
-                {/* Flat Demand Reference Line if entered */}
-                {demandMw !== null && (
-                  <ReferenceLine
-                    y={demandMw}
-                    label={{ value: `Demand: ${demandMw.toLocaleString()} MW`, fill: '#666666', fontSize: 11, position: 'insideTopRight' }}
-                    stroke="#888888"
-                    strokeDasharray="5 5"
-                    strokeWidth={1.5}
-                  />
-                )}
-
-                {/* Forecast Wind (Decision Moment) */}
-                <Line
-                  type="monotone"
-                  dataKey="forecastMw"
-                  name="Forecast Wind (Locked at 09:00 Cutoff)"
-                  stroke={PRIMARY_COLOR}
-                  strokeWidth={2.5}
-                  dot={false}
-                  activeDot={{ r: 5, fill: PRIMARY_COLOR }}
-                />
-
-                {/* Residual Need if demand entered */}
-                {demandMw !== null && (
-                  <Line
-                    type="monotone"
-                    dataKey="residualNeedMw"
-                    name="Base Need to Buy (Demand − Wind)"
-                    stroke="#555555"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                )}
-
-                {/* Revealed Actual Outturn */}
-                {revealActuals && (
-                  <Line
-                    type="monotone"
-                    dataKey="actualMw"
-                    name="Actual Wind Outturn"
-                    stroke="#999999"
-                    strokeWidth={2}
-                    strokeDasharray="4 3"
-                    dot={false}
-                  />
-                )}
-              </ComposedChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* Transition Link to Page 3 */}
-        {demandMw !== null && onNavigateToPage3 && (
-          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #eeeeee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', color: '#555555' }}>
-              Base procurement need is <strong>{totalResidualMwh?.toLocaleString(undefined, { maximumFractionDigits: 0 })} MWh</strong>. How does forecast uncertainty affect what we should buy?
-            </span>
-            <button
-              type="button"
-              onClick={onNavigateToPage3}
-              style={{
-                backgroundColor: PRIMARY_COLOR,
-                color: '#ffffff',
-                border: `1px solid ${PRIMARY_COLOR}`,
-                borderRadius: '4px',
-                padding: '0.5rem 1rem',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              View Recommended Buy Range →
-            </button>
-          </div>
-        )}
-      </section>
+        </>
+      )}
     </div>
   );
 };

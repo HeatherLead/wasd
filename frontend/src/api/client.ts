@@ -356,5 +356,133 @@ export const apiClient = {
       demand_mw: demandMw !== undefined ? String(demandMw) : undefined,
       cutoff_time: cutoffTime,
     }),
+
+  getDayAhead: (
+    date: string,
+    cutoff = '09:00',
+    coverage = 0.8,
+    thresholdMw?: number,
+    includeActual = false,
+    lookbackDays = 28
+  ) =>
+    fetchJson<DayAheadScheduleResponse>(`${BASE_URL}/day-ahead`, {
+      date,
+      cutoff,
+      coverage: String(coverage),
+      threshold_mw: thresholdMw !== undefined ? String(thresholdMw) : undefined,
+      include_actual: String(includeActual),
+      lookback_days: String(lookbackDays),
+    }),
+
+  getDayAheadValidation: (
+    cutoff = '09:00',
+    coverage = 0.8,
+    thresholdMw?: number,
+    lookbackDays = 28
+  ) =>
+    fetchJson<DayAheadValidationResponse>(`${BASE_URL}/day-ahead/validation`, {
+      cutoff,
+      coverage: String(coverage),
+      threshold_mw: thresholdMw !== undefined ? String(thresholdMw) : undefined,
+      lookback_days: String(lookbackDays),
+    }),
 };
+
+// ----------------------------------------------------
+// Day-Ahead Wind Forecast & Uncertainty Types (Page 2)
+// ----------------------------------------------------
+
+export interface DayAheadStatus {
+  delivery_date: string;
+  cutoff_utc: string;
+  forecast_publish_range: {
+    earliest: string | null;
+    latest: string | null;
+  };
+  snapshot_built_at: string;
+  intervals_expected: number;
+  intervals_available: number;
+  missing_interval_timestamps: string[];
+  is_complete: boolean;
+  is_low_sample: boolean;
+}
+
+export interface TopRiskIntervalItem {
+  start_time: string | null;
+  settlement_period: number | null;
+  forecast_mw: number | null;
+  p_shortfall_gt_threshold: number | null;
+  actual_low_mw: number | null;
+  horizon_hours: number | null;
+}
+
+export interface DayAheadRiskSummary {
+  expected_bias_mw: number | null;
+  threshold_mw: number;
+  mean_p_shortfall_gt_threshold: number | null;
+  max_p_shortfall_gt_threshold: number | null;
+  severe_downside_mwh: number;
+  severe_downside_coverage: number;
+  top_risk_intervals: TopRiskIntervalItem[];
+}
+
+export interface DayAheadBasisMetadata {
+  method_name: string;
+  coverage: number;
+  prior_days_count: number;
+  lookback_days: number;
+  min_block_samples: number;
+  total_prior_error_samples: number;
+}
+
+export interface DayAheadIntervalItem {
+  start_time: string | null;
+  settlement_period: number | null;
+  forecast_mw: number | null;
+  publish_time: string | null;
+  horizon_hours: number | null;
+  actual_low_mw: number | null;
+  actual_high_mw: number | null;
+  p_shortfall_gt_threshold: number | null;
+  sample_size: number;
+  basis: string | null;
+  block_label: string | null;
+  actual_mw?: number | null;
+  realized_error_mw?: number | null;
+  is_within_band?: boolean | null;
+}
+
+export interface DayAheadScheduleResponse {
+  status: DayAheadStatus;
+  risk_summary: DayAheadRiskSummary;
+  basis_metadata: DayAheadBasisMetadata;
+  intervals: DayAheadIntervalItem[];
+  units: UnitsBlock;
+}
+
+export interface ValidationDayItem {
+  delivery_date: string;
+  intervals_evaluated: number;
+  intervals_in_band: number;
+  realised_coverage: number;
+  prior_days_used: number;
+}
+
+export interface CalibrationTableItem {
+  bin_range: string;
+  sample_count: number;
+  observed_frequency: number | null;
+}
+
+export interface DayAheadValidationResponse {
+  target_coverage: number;
+  overall_realised_coverage: number | null;
+  total_intervals_evaluated: number;
+  total_days_evaluated: number;
+  threshold_mw: number;
+  days: ValidationDayItem[];
+  calibration_table: CalibrationTableItem[];
+  units: UnitsBlock;
+}
+
 

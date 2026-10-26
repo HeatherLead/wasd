@@ -272,3 +272,98 @@ class WorstIntervalsResponse(BaseModel):
     units: UnitsBlock = Field(default_factory=UnitsBlock)
     worst_overforecasts: List[WorstIntervalItem]
     worst_underforecasts: List[WorstIntervalItem]
+
+
+# ---------------------------------------------------------
+# Page 2 Day-Ahead Wind Forecast & Uncertainty Schemas
+# ---------------------------------------------------------
+
+class DayAheadStatus(BaseModel):
+    delivery_date: str
+    cutoff_utc: str
+    forecast_publish_range: Dict[str, Optional[str]]
+    snapshot_built_at: str
+    intervals_expected: int = 48
+    intervals_available: int
+    missing_interval_timestamps: List[str]
+    is_complete: bool = True
+    is_low_sample: bool = False
+
+
+class TopRiskIntervalItem(BaseModel):
+    start_time: Optional[str] = None
+    settlement_period: Optional[int] = None
+    forecast_mw: Optional[float] = None
+    p_shortfall_gt_threshold: Optional[float] = None
+    actual_low_mw: Optional[float] = None
+    horizon_hours: Optional[float] = None
+
+
+class DayAheadRiskSummary(BaseModel):
+    expected_bias_mw: Optional[float] = None
+    threshold_mw: float
+    mean_p_shortfall_gt_threshold: Optional[float] = None
+    max_p_shortfall_gt_threshold: Optional[float] = None
+    severe_downside_mwh: float
+    severe_downside_coverage: float = 0.90
+    top_risk_intervals: List[TopRiskIntervalItem] = Field(default_factory=list)
+
+
+class DayAheadBasisMetadata(BaseModel):
+    method_name: str = "empirical error quantiles"
+    coverage: float = 0.80
+    prior_days_count: int
+    lookback_days: int = 28
+    min_block_samples: int = 20
+    total_prior_error_samples: int
+
+
+class DayAheadIntervalItem(BaseModel):
+    start_time: Optional[str] = None
+    settlement_period: Optional[int] = None
+    forecast_mw: Optional[float] = None
+    publish_time: Optional[str] = None
+    horizon_hours: Optional[float] = None
+    actual_low_mw: Optional[float] = None
+    actual_high_mw: Optional[float] = None
+    p_shortfall_gt_threshold: Optional[float] = None
+    sample_size: int
+    basis: Optional[str] = None
+    block_label: Optional[str] = None
+    actual_mw: Optional[float] = None
+    realized_error_mw: Optional[float] = None
+    is_within_band: Optional[bool] = None
+
+
+class DayAheadScheduleResponse(BaseModel):
+    status: DayAheadStatus
+    risk_summary: DayAheadRiskSummary
+    basis_metadata: DayAheadBasisMetadata
+    intervals: List[DayAheadIntervalItem]
+    units: UnitsBlock = Field(default_factory=UnitsBlock)
+
+
+class ValidationDayItem(BaseModel):
+    delivery_date: str
+    intervals_evaluated: int
+    intervals_in_band: int
+    realised_coverage: float
+    prior_days_used: int
+
+
+class CalibrationTableItem(BaseModel):
+    bin_range: str
+    sample_count: int
+    observed_frequency: Optional[float] = None
+
+
+class DayAheadValidationResponse(BaseModel):
+    target_coverage: float
+    overall_realised_coverage: Optional[float] = None
+    total_intervals_evaluated: int
+    total_days_evaluated: int
+    threshold_mw: float
+    days: List[ValidationDayItem]
+    calibration_table: List[CalibrationTableItem]
+    units: UnitsBlock = Field(default_factory=UnitsBlock)
+

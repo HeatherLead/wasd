@@ -36,7 +36,6 @@ import type {
 } from '../api/client';
 import { apiClient } from '../api/client';
 import {
-  Calendar,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
@@ -48,7 +47,7 @@ interface Page1AccuracyProps {
   accuracy: AccuracyResponse | null;
   days: DaySummaryItem[];
   selectedDate: string;
-  onSelectDate: (date: string) => void;
+  onSelectDate?: (date: string) => void;
   cutoffTime?: string;
   dayDetail: DayDetailResponse | null;
   isLoadingDayDetail: boolean;
@@ -77,7 +76,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
   accuracy,
   days,
   selectedDate,
-  onSelectDate,
+  onSelectDate: _onSelectDate,
   cutoffTime = '09:00',
   dayDetail,
   isLoadingDayDetail,
@@ -298,76 +297,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
 
   return (
     <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* 0. Top: Simulation Day Selector (1 Jan to 31 Jan) */}
-      <section
-        style={{
-          background: '#ffffff',
-          border: '1px solid #e0e0e0',
-          borderRadius: '8px',
-          padding: '0.85rem 1.25rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div
-            style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '6px',
-              backgroundColor: '#e8f5ec',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Calendar size={18} color={PRIMARY_COLOR} />
-          </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Simulation Day
-            </div>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#000000' }}>
-              Select a day in January 2026 to simulate
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: '#555555' }}>
-            Day:
-          </span>
-          <select
-            value={selectedDate}
-            onChange={(e) => onSelectDate(e.target.value)}
-            style={{
-              padding: '0.45rem 1rem',
-              fontSize: '13px',
-              fontWeight: 700,
-              borderRadius: '6px',
-              border: `1.5px solid ${PRIMARY_COLOR}`,
-              backgroundColor: '#ffffff',
-              color: '#000000',
-              cursor: 'pointer',
-              outline: 'none',
-            }}
-          >
-            {Array.from({ length: 31 }, (_, i) => {
-              const dayStr = String(i + 1).padStart(2, '0');
-              const fullDate = `2026-01-${dayStr}`;
-              return (
-                <option key={fullDate} value={fullDate}>
-                  {i + 1} Jan 2026
-                </option>
-              );
-            })}
-          </select>
-        </div>
-      </section>
-
       {/* 1. The 4 Summary & Explanation Boxes (Compact Layout) */}
       <section
         style={{

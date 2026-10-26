@@ -19,6 +19,8 @@ from app.schemas import (
     ForecastRevisionsResponse,
     WorstIntervalsResponse,
     BuyRangeResponse,
+    DayAheadScheduleResponse,
+    DayAheadValidationResponse,
 )
 from app.store import data_store
 
@@ -245,5 +247,63 @@ def get_buy_range(
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error computing buy range: {str(e)}")
+
+
+@router.get("/day-ahead/validation", response_model=DayAheadValidationResponse, summary="Walk-Forward Uncertainty Backtest")
+def get_day_ahead_validation(
+    cutoff: str = Query("09:00", description="Cutoff time on D-1 in UTC (format HH:MM)", pattern=CUTOFF_REGEX),
+    coverage: float = Query(0.80, description="Target empirical coverage fraction (e.g. 0.80 or 0.90)", ge=0.50, le=0.99),
+    threshold_mw: Optional[float] = Query(None, description="Optional shortfall threshold in MW (derived from MAE if omitted)", ge=0),
+    lookback_days: int = Query(28, description="Lookback window in days (prior history)", ge=1, le=60),
+) -> DayAheadValidationResponse:
+    """
+    Walk-forward backtest over all January delivery days with enough history:
+    for each day, build the band from prior days only, then measure the share of
+    intervals where the actual fell within the band.
+    """
+    cutoff_val = validate_cutoff(cutoff)
+    try:
+        val_data = data_store.get_day_ahead_validation(
+            cutoff_time=cutoff_val,
+            coverage=coverage,
+            lookback_days=lookback_days,
+            threshold_mw=threshold_mw,
+        )
+        return DayAheadValidationResponse(**val_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error running day-ahead validation: {str(e)}")
+
+
+@router.get("/day-ahead", response_model=DayAheadScheduleResponse, summary="Day-Ahead Wind Forecast & Downside Risk")
+def get_day_ahead(
+    date: str = Query(..., description="Delivery date (YYYY-MM-DD)", pattern=DATE_REGEX),
+    cutoff: str = Query("09:00", description="Cutoff time on D-1 in UTC (format HH:MM)", pattern=CUTOFF_REGEX),
+    coverage: float = Query(0.80, description="Target empirical coverage fraction (e.g. 0.80 or 0.90)", ge=0.50, le=0.99),
+    threshold_mw: Optional[float] = Query(None, description="Optional shortfall threshold in MW (derived from historical MAE if omitted)", ge=0),
+    include_actual: bool = Query(False, description="Include actual generation and realized error for reveal toggle"),
+    lookback_days: int = Query(28, description="Lookback window in days (prior history)", ge=1, le=60),
+) -> DayAheadScheduleResponse:
+    """
+    Day-ahead wind forecast available at decision cutoff with empirical error quantile uncertainty bounds
+    and shortfall downside risk metrics, strictly using prior days' history.
+    """
+    cutoff_val = validate_cutoff(cutoff)
+    if not re.match(DATE_REGEX, date.strip()):
+        raise HTTPException(status_code=400, detail=f"Invalid date format '{date}'. Must be 'YYYY-MM-DD'.")
+
+    try:
+        schedule_data = data_store.get_day_ahead_schedule(
+            date_str=date.strip(),
+            cutoff_time=cutoff_val,
+            coverage=coverage,
+            threshold_mw=threshold_mw,
+            include_actual=include_actual,
+            lookback_days=lookback_days,
+        )
+        return DayAheadScheduleResponse(**schedule_data)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error computing day-ahead schedule: {str(e)}")
 
 

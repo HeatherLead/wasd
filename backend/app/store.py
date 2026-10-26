@@ -29,6 +29,11 @@ from app.metrics import (
     calculate_boxplot_statistics,
     calculate_buy_range_for_intervals,
 )
+from app.uncertainty import (
+    build_error_history,
+    compute_day_ahead_schedule,
+    run_walk_forward_backtest,
+)
 
 logger = logging.getLogger("store")
 
@@ -742,6 +747,66 @@ class DataStore:
             "totals": totals,
             "intervals": intervals_output,
         }
+
+    def get_day_ahead_schedule(
+        self,
+        date_str: str,
+        cutoff_time: str = "09:00",
+        coverage: float = 0.80,
+        threshold_mw: Optional[float] = None,
+        include_actual: bool = False,
+        lookback_days: int = 28,
+    ) -> Dict[str, Any]:
+        """
+        Computes day-ahead forecast schedule and empirical error quantile uncertainty bands
+        for delivery day D strictly using historical decision-time errors from prior days.
+        """
+        cutoff_clean = self.parse_cutoff(cutoff_time)
+        cutoff_key = f"{cutoff_clean[0]:02d}:{cutoff_clean[1]:02d}"
+        df = self.get_joined_dataset(cutoff_time=cutoff_key, mode="half_hourly")
+
+        try:
+            target_date = datetime.strptime(date_str.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            raise ValueError(f"Invalid date format '{date_str}'. Expected 'YYYY-MM-DD'.")
+
+        day_df = df[df["delivery_date"] == target_date].sort_values("start_time").reset_index(drop=True)
+        if day_df.empty:
+            raise ValueError(f"No data available for delivery day '{date_str}'. Range is January 2026.")
+
+        error_history = build_error_history(df, delivery_date=target_date, lookback_days=lookback_days)
+
+        schedule = compute_day_ahead_schedule(
+            day_df=day_df,
+            error_history=error_history,
+            cutoff_utc=cutoff_key,
+            coverage=coverage,
+            threshold_mw=threshold_mw,
+            lookback_days=lookback_days,
+            include_actual=include_actual,
+        )
+        return schedule
+
+    def get_day_ahead_validation(
+        self,
+        cutoff_time: str = "09:00",
+        coverage: float = 0.80,
+        lookback_days: int = 28,
+        threshold_mw: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Walk-forward backtest over all January delivery days measuring empirical band coverage.
+        """
+        cutoff_clean = self.parse_cutoff(cutoff_time)
+        cutoff_key = f"{cutoff_clean[0]:02d}:{cutoff_clean[1]:02d}"
+        df = self.get_joined_dataset(cutoff_time=cutoff_key, mode="half_hourly")
+
+        return run_walk_forward_backtest(
+            df_joined=df,
+            coverage=coverage,
+            lookback_days=lookback_days,
+            threshold_mw=threshold_mw,
+        )
 
 
 # Global store instance

@@ -30,6 +30,7 @@ import {
   Clock,
   ShoppingCart,
   AlertCircle,
+  Calendar,
 } from 'lucide-react';
 
 type PageId = 'accuracy' | 'replay' | 'buy-range';
@@ -239,6 +240,77 @@ export const App: React.FC = () => {
           </div>
         )}
 
+        {/* Global Simulation Day Selector (Shared across Page 1, Page 2, Page 3) */}
+        <section
+          style={{
+            background: '#ffffff',
+            border: '1px solid #e0e0e0',
+            borderRadius: '8px',
+            padding: '0.85rem 1.25rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem',
+            marginBottom: '1.5rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
+                backgroundColor: '#e8f5ec',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Calendar size={18} color={PRIMARY_COLOR} />
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Simulation Day
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#000000' }}>
+                Select a day in January 2026 to simulate
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#555555' }}>
+              Day:
+            </span>
+            <select
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              style={{
+                padding: '0.45rem 1rem',
+                fontSize: '13px',
+                fontWeight: 700,
+                borderRadius: '6px',
+                border: `1.5px solid ${PRIMARY_COLOR}`,
+                backgroundColor: '#ffffff',
+                color: '#000000',
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              {Array.from({ length: 31 }, (_, i) => {
+                const dayStr = String(i + 1).padStart(2, '0');
+                const fullDate = `2026-01-${dayStr}`;
+                return (
+                  <option key={fullDate} value={fullDate}>
+                    {i + 1} Jan 2026
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        </section>
+
         {loading ? (
           <div style={{ padding: '4rem', textAlign: 'center', color: '#666666', fontSize: '1rem' }}>
             Loading analytical dataset from Parquet store...
@@ -261,19 +333,12 @@ export const App: React.FC = () => {
               />
             )}
 
-            {/* Page 2: Decision Replay (The Trader's View) */}
+            {/* Page 2: Decision Replay (Day-Ahead Wind Forecast & Uncertainty) */}
             {activePage === 'replay' && (
               <Page2DecisionReplay
                 selectedDate={selectedDate}
                 onSelectDate={setSelectedDate}
                 cutoffTime={cutoffTime}
-                dayDetail={dayDetail}
-                isLoading={loadingDayDetail}
-                days={daysList}
-                summary={summaryData}
-                demandMw={demandMw}
-                onDemandChange={setDemandMw}
-                onNavigateToPage3={() => setActivePage('buy-range')}
               />
             )}
 
@@ -288,8 +353,8 @@ export const App: React.FC = () => {
               />
             )}
 
-            {/* Secondary Details Section (Only for Page 2 & Page 3, since Page 1 has integrated audits) */}
-            {activePage !== 'accuracy' && (
+            {/* Secondary Details Section (Only for Page 3) */}
+            {activePage === 'buy-range' && (
               <DetailsSection
                 dayDetail={dayDetail}
                 selectedDate={selectedDate}
