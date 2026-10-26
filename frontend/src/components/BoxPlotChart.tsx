@@ -63,20 +63,41 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
 
   return (
     <div className="boxplot-container" style={{ background: '#ffffff', border: '1px solid #e0e0e0', padding: '1.25rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          minHeight: '2.5rem',
+          marginBottom: '0.75rem',
+          gap: '1rem',
+        }}
+      >
         <div>
           <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#000000' }}>
             Outlier Check: Difference (Forecast − Actual)
           </h4>
           <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#666666' }}>
-            {subtitle || 'Finds extreme hours that skewed the average. Left of 0 = predicted too low; Right of 0 = predicted too high.'}
+            {subtitle || 'Finds extreme hours that skewed the average. '}
           </p>
         </div>
-        {hoveredValue && (
-          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: PRIMARY_COLOR, background: '#f5f5f5', padding: '0.2rem 0.6rem', border: `1px solid ${PRIMARY_COLOR}`, borderRadius: '4px' }}>
-            {hoveredValue}
-          </div>
-        )}
+        <div
+          style={{
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            color: PRIMARY_COLOR,
+            background: hoveredValue ? '#f5f5f5' : 'transparent',
+            padding: '0.2rem 0.6rem',
+            border: `1px solid ${hoveredValue ? PRIMARY_COLOR : 'transparent'}`,
+            borderRadius: '4px',
+            visibility: hoveredValue ? 'visible' : 'hidden',
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
+        >
+          {hoveredValue || '—'}
+        </div>
       </div>
 
       <div style={{ width: '100%', overflowX: 'auto' }}>
@@ -160,6 +181,7 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             fill="#f9f9f9"
             stroke="#000000"
             strokeWidth="2"
+            style={{ cursor: 'pointer' }}
             onMouseEnter={() => setHoveredValue(`Middle 50%: ${stats.q1_mw?.toLocaleString()} MW to ${stats.q3_mw?.toLocaleString()} MW`)}
             onMouseLeave={() => setHoveredValue(null)}
           />
@@ -172,6 +194,7 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             y2={plotCenterY + boxHeight / 2}
             stroke={PRIMARY_COLOR}
             strokeWidth="4"
+            style={{ cursor: 'pointer' }}
             onMouseEnter={() => setHoveredValue(`Median (Typical) Difference: ${stats.median_mw?.toLocaleString()} MW`)}
             onMouseLeave={() => setHoveredValue(null)}
           />

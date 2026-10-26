@@ -781,7 +781,7 @@ def compute_buy_range_schedule(
         cen_total_mwh = round(sum(v * 0.5 for v in valid_cen), 1) if valid_cen else None
 
         peak_high = max(valid_rec) if valid_rec else 0.0
-        peak_low = min(valid_low) if valid_low else 0.0
+        peak_low = max(valid_low) if valid_low else 0.0
         peak_range = round(peak_high - peak_low, 1)
     else:
         base_total_mwh = None

@@ -22,7 +22,6 @@ import type {
 import { Page1Accuracy } from './components/Page1Accuracy';
 import { Page2DecisionReplay } from './components/Page2DecisionReplay';
 import { Page3BuyRange } from './components/Page3BuyRange';
-import { DetailsSection } from './components/DetailsSection';
 import { PRIMARY_COLOR } from './theme';
 import {
   BarChart2,
@@ -103,7 +102,7 @@ export const App: React.FC = () => {
         style={{
           borderBottom: '1px solid #e0e0e0',
           backgroundColor: '#ffffff',
-          padding: '0.85rem 2rem',
+          padding: '0.85rem 1rem',
           position: 'sticky',
           top: 0,
           zIndex: 100,
@@ -123,6 +122,7 @@ export const App: React.FC = () => {
                 backgroundColor: activePage === 'accuracy' ? PRIMARY_COLOR : '#ffffff',
                 color: activePage === 'accuracy' ? '#ffffff' : '#000000',
                 border: `1px solid ${activePage === 'accuracy' ? PRIMARY_COLOR : '#000000'}`,
+                borderRadius: '6px',
                 cursor: 'pointer',
                 textAlign: 'left',
                 minWidth: '240px',
@@ -133,9 +133,6 @@ export const App: React.FC = () => {
                 <BarChart2 size={16} />
                 1. Accuracy
               </div>
-              <span style={{ fontSize: '0.75rem', opacity: activePage === 'accuracy' ? 0.9 : 0.65, marginTop: '0.15rem' }}>
-                "How good were the forecasts?"
-              </span>
             </button>
 
             {/* Page 2 Button */}
@@ -150,6 +147,7 @@ export const App: React.FC = () => {
                 backgroundColor: activePage === 'replay' ? PRIMARY_COLOR : '#ffffff',
                 color: activePage === 'replay' ? '#ffffff' : '#000000',
                 border: `1px solid ${activePage === 'replay' ? PRIMARY_COLOR : '#000000'}`,
+                borderRadius: '6px',
                 cursor: 'pointer',
                 textAlign: 'left',
                 minWidth: '240px',
@@ -160,9 +158,6 @@ export const App: React.FC = () => {
                 <Clock size={16} />
                 2. Decision Replay
               </div>
-              <span style={{ fontSize: '0.75rem', opacity: activePage === 'replay' ? 0.9 : 0.65, marginTop: '0.15rem' }}>
-                "What did the trader see on D-1?"
-              </span>
             </button>
 
             {/* Page 3 Button */}
@@ -177,6 +172,7 @@ export const App: React.FC = () => {
                 backgroundColor: activePage === 'buy-range' ? PRIMARY_COLOR : '#ffffff',
                 color: activePage === 'buy-range' ? '#ffffff' : '#000000',
                 border: `1px solid ${activePage === 'buy-range' ? PRIMARY_COLOR : '#000000'}`,
+                borderRadius: '6px',
                 cursor: 'pointer',
                 textAlign: 'left',
                 minWidth: '240px',
@@ -187,93 +183,92 @@ export const App: React.FC = () => {
                 <ShoppingCart size={16} />
                 3. Buy Range
               </div>
-              <span style={{ fontSize: '0.75rem', opacity: activePage === 'buy-range' ? 0.9 : 0.65, marginTop: '0.15rem' }}>
-                "What should we plan to buy?"
-              </span>
             </button>
           </nav>
         </div>
       </header>
 
       {/* Main Page Content */}
-      <main style={{ flex: 1, padding: '2rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+      <main style={{ flex: 1, padding: '1rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
         {error && (
-          <div style={{ padding: '1rem', backgroundColor: '#fff', border: '2px solid #d32f2f', color: '#d32f2f', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <div style={{ padding: '1rem', backgroundColor: '#fff', border: '2px solid #d32f2f', borderRadius: '8px', color: '#d32f2f', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <AlertCircle size={20} />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Global Simulation Day Selector (Shared across Page 1, Page 2, Page 3) */}
-        <section
-          style={{
-            background: '#ffffff',
-            border: '1px solid #e0e0e0',
-            borderRadius: '8px',
-            padding: '0.85rem 1.25rem',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            marginBottom: '1.5rem',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '6px',
-                backgroundColor: '#e8f5ec',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Calendar size={18} color={PRIMARY_COLOR} />
-            </div>
-            <div>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Simulation Day
+        {/* Global Simulation Day Selector (Pages 1 & 2 only, hidden on Page 3) */}
+        {activePage !== 'buy-range' && (
+          <section
+            style={{
+              background: '#ffffff',
+              border: '1px solid #e0e0e0',
+              borderRadius: '8px',
+              padding: '0.85rem 1.25rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem',
+              marginBottom: '1.5rem',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  backgroundColor: '#e8f5ec',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Calendar size={18} color={PRIMARY_COLOR} />
               </div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#000000' }}>
-                Select a day
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Simulation Day
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#000000' }}>
+                  Select a day
+                </div>
               </div>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#555555' }}>
-              Day:
-            </span>
-            <select
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              style={{
-                padding: '0.45rem 1rem',
-                fontSize: '13px',
-                fontWeight: 700,
-                borderRadius: '6px',
-                border: `1.5px solid ${PRIMARY_COLOR}`,
-                backgroundColor: '#ffffff',
-                color: '#000000',
-                cursor: 'pointer',
-                outline: 'none',
-              }}
-            >
-              {Array.from({ length: 31 }, (_, i) => {
-                const dayStr = String(i + 1).padStart(2, '0');
-                const fullDate = `2026-01-${dayStr}`;
-                return (
-                  <option key={fullDate} value={fullDate}>
-                    {i + 1} Jan 2026
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-        </section>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: '#555555' }}>
+                Day:
+              </span>
+              <select
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                style={{
+                  padding: '0.45rem 1rem',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  border: `1.5px solid ${PRIMARY_COLOR}`,
+                  backgroundColor: '#ffffff',
+                  color: '#000000',
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                {Array.from({ length: 31 }, (_, i) => {
+                  const dayStr = String(i + 1).padStart(2, '0');
+                  const fullDate = `2026-01-${dayStr}`;
+                  return (
+                    <option key={fullDate} value={fullDate}>
+                      {i + 1} Jan 2026
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </section>
+        )}
 
         {loading ? (
           <div style={{ padding: '4rem', textAlign: 'center', color: '#666666', fontSize: '1rem' }}>

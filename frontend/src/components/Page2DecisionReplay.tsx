@@ -9,7 +9,7 @@
  * Rules:
  * - Wind supply uncertainty ONLY (no demand or buy quantities).
  * - Strictly empirical error quantiles from prior days (no ML, no look-ahead).
- * - Clean, calm, fast layout: status strip, main forecast & plausible band chart,
+ * - Clean, calm, fast layout: status strip, main forecast & plausible percentile range chart,
  *   half-hourly shortfall risk concentration chart, and interval details with CSV export.
  */
 
@@ -219,14 +219,14 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
 
       {/* ERROR BANNER */}
       {error && (
-        <div style={{ padding: '1rem', border: '1px solid #d32f2f', backgroundColor: '#ffebee', color: '#d32f2f' }}>
+        <div style={{ padding: '1rem', border: '1px solid #d32f2f', borderRadius: '8px', backgroundColor: '#ffebee', color: '#d32f2f' }}>
           {error}
         </div>
       )}
 
       {/* LOADING STATE */}
       {loading && !data && (
-        <div style={{ padding: '4rem', textAlign: 'center', color: '#666666', border: '1px solid #e0e0e0' }}>
+        <div style={{ padding: '4rem', textAlign: 'center', color: '#666666', border: '1px solid #e0e0e0', borderRadius: '8px' }}>
           Evaluating empirical error quantiles and downside risk...
         </div>
       )}
@@ -236,7 +236,8 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
           {/* 2. MAIN CHART: FORECAST WIND & PLAUSIBLE ACTUAL BAND */}
           <div
             style={{
-              border: '1px solid #d0d0d0',
+              border: '1px solid #e0e0e0',
+              borderRadius: '8px',
               backgroundColor: '#ffffff',
               padding: '1.5rem',
             }}
@@ -251,9 +252,9 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                 </div>
               </div>
 
-              {/* Chart Controls: Coverage Toggle (80% vs 90%) */}
+              {/* Chart Controls: Coverage Toggle (80th vs 90th Percentile) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'inline-flex', border: '1px solid #000000' }}>
+                <div style={{ display: 'flex', gap: '4px', backgroundColor: '#f1f3f5', padding: '3px', borderRadius: '6px' }}>
                   <button
                     type="button"
                     onClick={() => setCoverage(0.80)}
@@ -261,13 +262,15 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                       padding: '0.35rem 0.75rem',
                       fontSize: '0.8rem',
                       fontWeight: 600,
-                      backgroundColor: coverage === 0.80 ? '#000000' : '#ffffff',
-                      color: coverage === 0.80 ? '#ffffff' : '#000000',
+                      borderRadius: '4px',
                       border: 'none',
+                      backgroundColor: coverage === 0.80 ? PRIMARY_COLOR : 'transparent',
+                      color: coverage === 0.80 ? '#ffffff' : '#000000',
                       cursor: 'pointer',
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    80% Band
+                    80th Percentile
                   </button>
                   <button
                     type="button"
@@ -276,14 +279,15 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                       padding: '0.35rem 0.75rem',
                       fontSize: '0.8rem',
                       fontWeight: 600,
-                      backgroundColor: coverage === 0.90 ? '#000000' : '#ffffff',
-                      color: coverage === 0.90 ? '#ffffff' : '#000000',
+                      borderRadius: '4px',
                       border: 'none',
-                      borderLeft: '1px solid #000000',
+                      backgroundColor: coverage === 0.90 ? PRIMARY_COLOR : 'transparent',
+                      color: coverage === 0.90 ? '#ffffff' : '#000000',
                       cursor: 'pointer',
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    90% Band
+                    90th Percentile
                   </button>
                 </div>
               </div>
@@ -316,10 +320,11 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                         <div
                           style={{
                             backgroundColor: '#ffffff',
-                            border: '1px solid #000000',
+                            border: '1px solid #e0e0e0',
+                            borderRadius: '6px',
                             padding: '0.75rem 1rem',
                             fontSize: '0.8rem',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                           }}
                         >
                           <div style={{ fontWeight: 700, marginBottom: '0.35rem', borderBottom: '1px solid #eee', paddingBottom: '0.25rem' }}>
@@ -329,7 +334,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                             Forecast Wind: <strong>{d.forecast_mw?.toLocaleString()} MW</strong>
                           </div>
                           <div style={{ color: PRIMARY_COLOR, marginTop: '0.2rem' }}>
-                            Plausible Range ({Math.round(coverage * 100)}%):{' '}
+                            Plausible Range ({Math.round(coverage * 100)}th Percentile):{' '}
                             <strong>
                               {d.actual_low_mw?.toLocaleString()} – {d.actual_high_mw?.toLocaleString()} MW
                             </strong>
@@ -358,18 +363,18 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                               backgroundColor: 'rgba(20, 137, 55, 0.3)',
                               border: `1.5px dashed ${PRIMARY_COLOR}`,
                               display: 'inline-block',
-                              borderRadius: '1px',
+                              borderRadius: '3px',
                             }}
                           />
                           <span style={{ color: '#111111', fontWeight: 600 }}>
-                            Plausible Actual Band ({Math.round(coverage * 100)}% empirical)
+                            Plausible Actual Range ({Math.round(coverage * 100)}th Percentile)
                           </span>
                         </div>
                       </div>
                     )}
                   />
 
-                  {/* Shaded Empirical Quantile Band */}
+                  {/* Shaded Empirical Quantile Range */}
                   <Area
                     type="monotone"
                     dataKey="band_base"
@@ -384,7 +389,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                     stackId="1"
                     fill="rgba(20, 137, 55, 0.16)"
                     stroke="none"
-                    name={`Plausible Actual Band (${Math.round(coverage * 100)}% empirical)`}
+                    name={`Plausible Actual Range (${Math.round(coverage * 100)}th percentile empirical)`}
                   />
 
                   {/* Quantile Boundary Dashes */}
@@ -425,7 +430,8 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
           {actualEstimates && (
             <div
               style={{
-                border: '1px solid #d0d0d0',
+                border: '1px solid #e0e0e0',
+                borderRadius: '8px',
                 backgroundColor: '#ffffff',
                 padding: '1.25rem 1.5rem',
               }}
@@ -445,11 +451,8 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
               >
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#000000' }}>
-                    Expected Actual Wind Generation & Downside Assessment
+                    Expected Wind Generation & Uncertainty
                   </h3>
-                  <div style={{ fontSize: '0.75rem', color: '#666666', marginTop: '0.2rem' }}>
-                    Calculated from empirical forecast error bias and quantile spreads over prior {data.basis_metadata.prior_days_count} days
-                  </div>
                 </div>
 
                 <div
@@ -460,7 +463,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                     fontSize: '0.75rem',
                     backgroundColor: '#f5f5f5',
                     padding: '0.35rem 0.65rem',
-                    borderRadius: '2px',
+                    borderRadius: '6px',
                     border: '1px solid #e0e0e0',
                   }}
                 >
@@ -471,7 +474,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                       {actualEstimates.bias >= 0 ? '+' : ''}
                       {Math.round(actualEstimates.bias).toLocaleString()} MW
                     </strong>{' '}
-                    ({actualEstimates.bias >= 0 ? 'over-forecast tendency' : 'under-forecast tendency'})
+                    ({actualEstimates.bias >= 0 ? 'over-prediction' : 'under-prediction'})
                   </span>
                 </div>
               </div>
@@ -482,108 +485,91 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                   gap: '1rem',
-                  marginBottom: '1.25rem',
+                  marginBottom: '1rem',
                 }}
               >
                 {/* 1. Raw Forecast Baseline */}
-                <div style={{ border: '1px solid #e0e0e0', padding: '1rem', backgroundColor: '#fafafa' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#666666', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.04em' }}>
-                    Published Forecast (Baseline)
+                <div style={{ border: '1px solid #e0e0e0', borderRadius: '6px', padding: '1rem', backgroundColor: '#fafafa' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#666666', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>
+                    Published Forecast
                   </div>
-                  <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#000000', margin: '0.3rem 0' }}>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#000000', margin: '0.25rem 0' }}>
                     {Math.round(actualEstimates.avgForecast).toLocaleString()} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>MW avg</span>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#555555' }}>
                     Total: <strong>{Math.round(actualEstimates.totalForecastMWh).toLocaleString()} MWh</strong>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#888888', marginTop: '0.4rem' }}>
-                    Raw day-ahead model output before uncertainty adjustment
-                  </div>
                 </div>
 
-                {/* 2. Expected Actual Value (Bias-Adjusted) */}
+                {/* 2. Expected Actual Value (Bias-Adjusted) - Minimum text, clean and simple */}
                 <div
                   style={{
                     border: `1.5px solid ${PRIMARY_COLOR}`,
+                    borderRadius: '6px',
                     padding: '1rem',
                     backgroundColor: 'rgba(20, 137, 55, 0.03)',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: '0.75rem', color: PRIMARY_COLOR, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
-                      Calculated Expected Actual
+                    <div style={{ fontSize: '0.75rem', color: PRIMARY_COLOR, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.03em' }}>
+                      Expected Actual
                     </div>
-                    <span style={{ fontSize: '0.65rem', backgroundColor: PRIMARY_COLOR, color: '#ffffff', padding: '1px 5px', fontWeight: 600 }}>
-                      BIAS-ADJUSTED
+                    <span style={{ fontSize: '0.65rem', backgroundColor: PRIMARY_COLOR, color: '#ffffff', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                      Bias-Adjusted
                     </span>
                   </div>
-                  <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#000000', margin: '0.3rem 0' }}>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#000000', margin: '0.25rem 0' }}>
                     {Math.round(actualEstimates.expectedActual).toLocaleString()} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>MW avg</span>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#555555' }}>
                     Total: <strong>{Math.round(actualEstimates.totalExpectedMWh).toLocaleString()} MWh</strong>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#666666', marginTop: '0.4rem' }}>
-                    Forecast corrected for {actualEstimates.bias >= 0 ? '+' : ''}{Math.round(actualEstimates.bias).toLocaleString()} MW historical over-prediction
-                  </div>
                 </div>
 
                 {/* 3. Plausible Actual Range */}
-                <div style={{ border: '1px solid #e0e0e0', padding: '1rem', backgroundColor: '#fafafa' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#666666', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.04em' }}>
-                    Plausible Actual Range ({Math.round(coverage * 100)}%)
+                <div style={{ border: '1px solid #e0e0e0', borderRadius: '6px', padding: '1rem', backgroundColor: '#fafafa' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#666666', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>
+                    Plausible Range ({Math.round(coverage * 100)}th Percentile)
                   </div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#000000', margin: '0.3rem 0' }}>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#000000', margin: '0.25rem 0' }}>
                     {Math.round(actualEstimates.avgLow).toLocaleString()} – {Math.round(actualEstimates.avgHigh).toLocaleString()}{' '}
                     <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>MW</span>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#555555' }}>
                     Total: <strong>{Math.round(actualEstimates.totalPlausibleLowMWh).toLocaleString()}</strong> – <strong>{Math.round(actualEstimates.totalPlausibleHighMWh).toLocaleString()} MWh</strong>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#888888', marginTop: '0.4rem' }}>
-                    Spread of {Math.round(actualEstimates.avgHigh - actualEstimates.avgLow).toLocaleString()} MW between P{Math.round(((1 - coverage) / 2) * 100)} and P{Math.round((1 - (1 - coverage) / 2) * 100)}
-                  </div>
                 </div>
               </div>
 
-              {/* Intraday Trend & Ramp Analysis */}
+              {/* Intraday Trend & Ramp Analysis - Clean & Concise */}
               <div
                 style={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.5rem',
-                  padding: '0.85rem 1rem',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                  padding: '0.65rem 1rem',
                   backgroundColor: '#f9f9f9',
                   border: '1px solid #e6e6e6',
-                  fontSize: '0.8rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#111111' }}>
-                  {actualEstimates.trendType === 'up' && <TrendingUp size={16} color={PRIMARY_COLOR} />}
-                  {actualEstimates.trendType === 'down' && <TrendingDown size={16} color="#d32f2f" />}
-                  <span>Generation Trajectory & Profile:</span>
+                  {actualEstimates.trendType === 'up' && <TrendingUp size={15} color={PRIMARY_COLOR} />}
+                  {actualEstimates.trendType === 'down' && <TrendingDown size={15} color="#d32f2f" />}
+                  <span>Trajectory:</span>
                   <span style={{ fontWeight: 400, color: '#555555' }}>{actualEstimates.trendLabel}</span>
                 </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', color: '#444444', fontSize: '0.75rem', marginTop: '0.2rem' }}>
-                  <div>
-                    Peak Forecast Generation:{' '}
-                    <strong>
-                      SP {actualEstimates.peakIt.settlement_period} ({actualEstimates.peakIt.start_time?.slice(11, 16)} UTC)
-                    </strong>{' '}
-                    at <strong>{Math.round(actualEstimates.peakIt.forecast_mw ?? 0).toLocaleString()} MW</strong> (Plausible:{' '}
-                    {Math.round(actualEstimates.peakIt.actual_low_mw ?? 0).toLocaleString()} –{' '}
-                    {Math.round(actualEstimates.peakIt.actual_high_mw ?? 0).toLocaleString()} MW)
-                  </div>
-                  <div>
-                    Minimum Forecast Generation:{' '}
-                    <strong>
-                      SP {actualEstimates.troughIt.settlement_period} ({actualEstimates.troughIt.start_time?.slice(11, 16)} UTC)
-                    </strong>{' '}
-                    at <strong>{Math.round(actualEstimates.troughIt.forecast_mw ?? 0).toLocaleString()} MW</strong> (Plausible:{' '}
-                    {Math.round(actualEstimates.troughIt.actual_low_mw ?? 0).toLocaleString()} –{' '}
-                    {Math.round(actualEstimates.troughIt.actual_high_mw ?? 0).toLocaleString()} MW)
-                  </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', color: '#555555' }}>
+                  <span>
+                    Peak: <strong>{Math.round(actualEstimates.peakIt.forecast_mw ?? 0).toLocaleString()} MW</strong> (SP {actualEstimates.peakIt.settlement_period})
+                  </span>
+                  <span>
+                    Min: <strong>{Math.round(actualEstimates.troughIt.forecast_mw ?? 0).toLocaleString()} MW</strong> (SP {actualEstimates.troughIt.settlement_period})
+                  </span>
                 </div>
               </div>
             </div>
@@ -592,7 +578,8 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
           {/* 3. SECONDARY CHART: SHORTFALL PROBABILITY BY HALF-HOUR */}
           <div
             style={{
-              border: '1px solid #d0d0d0',
+              border: '1px solid #e0e0e0',
+              borderRadius: '8px',
               backgroundColor: '#ffffff',
               padding: '1.25rem 1.5rem',
             }}
@@ -632,7 +619,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                   <Tooltip
                     formatter={(val: any) => [`${Number(val).toFixed(1)}%`, 'Shortfall Prob']}
                     labelFormatter={(lbl) => `Time: ${lbl} UTC`}
-                    contentStyle={{ fontSize: '0.8rem', border: '1px solid #000' }}
+                    contentStyle={{ fontSize: '0.8rem', border: '1px solid #e0e0e0', borderRadius: '6px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
                   />
                   <Bar dataKey="p_shortfall_pct" fill={PRIMARY_COLOR} name="Shortfall Probability" />
                 </BarChart>
@@ -641,7 +628,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
           </div>
 
           {/* 4. COLLAPSED "INTERVAL DETAILS" TABLE WITH EXPORT TO CSV */}
-          <div style={{ border: '1px solid #d0d0d0', backgroundColor: '#ffffff' }}>
+          <div style={{ border: '1px solid #e0e0e0', borderRadius: '8px', backgroundColor: '#ffffff', overflow: 'hidden' }}>
             <div
               style={{
                 display: 'flex',
@@ -683,6 +670,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                   backgroundColor: '#ffffff',
                   color: '#000000',
                   border: '1px solid #000000',
+                  borderRadius: '6px',
                   cursor: 'pointer',
                 }}
               >
@@ -731,7 +719,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                             style={{
                               padding: '0.1rem 0.35rem',
                               fontSize: '0.7rem',
-                              borderRadius: '2px',
+                              borderRadius: '4px',
                               backgroundColor: it.basis === 'block' ? '#e8f5e9' : '#fff3e0',
                               color: it.basis === 'block' ? PRIMARY_COLOR : '#e65100',
                             }}

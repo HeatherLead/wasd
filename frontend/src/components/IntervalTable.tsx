@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { ArrowUpDown, Download, Search, ChevronDown, ChevronUp, Table } from 'lucide-react';
+import { ArrowUpDown, Download, Search, ChevronDown, ChevronRight } from 'lucide-react';
 import type { IntervalDetailItem } from '../api/client';
 import { formatDate } from '../utils/date';
 import { PRIMARY_COLOR } from '../theme';
@@ -108,119 +108,76 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
   return (
     <div
       style={{
-        backgroundColor: '#ffffff',
         border: '1px solid #e0e0e0',
         borderRadius: '8px',
+        backgroundColor: '#ffffff',
         overflow: 'hidden',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
       }}
     >
-      {/* 1. Collapsible Interactive Header */}
+      {/* 1. Header with Chevron Toggle & Export CSV matching Page 2 */}
       <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setIsOpen(!isOpen)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setIsOpen(!isOpen);
-          }
-        }}
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '1rem 1.25rem',
-          backgroundColor: isOpen ? '#fafafa' : '#ffffff',
-          cursor: 'pointer',
-          userSelect: 'none',
-          transition: 'background-color 0.15s ease',
+          padding: '0.85rem 1.25rem',
+          backgroundColor: '#fafafa',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div
-            style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '6px',
-              backgroundColor: '#e8f5ec',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Table size={16} color={PRIMARY_COLOR} />
-          </div>
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: '#000000' }}>
-              Audit Table — {formatDate(deliveryDate)}
-            </div>
-            <div style={{ fontSize: '12px', color: '#666666', marginTop: '2px' }}>
-              {resolution === 'half_hourly' ? '48 half-hour settlement periods' : '24 hourly blocks'} in UTC
-            </div>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            backgroundColor: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: 700,
+            fontSize: '0.95rem',
+            padding: 0,
+            color: '#000000',
+          }}
+        >
+          {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          <span>Audit Table — {formatDate(deliveryDate)}</span>
+        </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span
-            style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              backgroundColor: '#f1f3f5',
-              color: '#495057',
-              padding: '3px 8px',
-              borderRadius: '4px',
-            }}
-          >
-            {intervals.length} Intervals
-          </span>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsOpen(!isOpen);
-            }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              fontSize: '12px',
-              fontWeight: 600,
-              borderRadius: '6px',
-              border: `1px solid ${isOpen ? PRIMARY_COLOR : '#000000'}`,
-              backgroundColor: isOpen ? '#ffffff' : '#000000',
-              color: isOpen ? PRIMARY_COLOR : '#ffffff',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            {isOpen ? (
-              <>
-                Close Table <ChevronUp size={14} />
-              </>
-            ) : (
-              <>
-                Open Table <ChevronDown size={14} />
-              </>
-            )}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleExportCSV}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.35rem 0.75rem',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            backgroundColor: '#ffffff',
+            color: '#000000',
+            border: '1px solid #000000',
+            borderRadius: '6px',
+            cursor: 'pointer',
+          }}
+        >
+          <Download size={14} />
+          Export CSV
+        </button>
       </div>
 
       {/* 2. Expanded Table Section */}
       {isOpen && (
-        <div style={{ borderTop: '1px solid #eeeeee', padding: '1rem 1.25rem' }}>
-          {/* Controls: Search & CSV Export */}
+        <div style={{ borderTop: '1px solid #e0e0e0' }}>
+          {/* Controls: Filter search */}
           <div
             style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '12px',
-              marginBottom: '1rem',
+              padding: '0.65rem 1.25rem',
+              backgroundColor: '#ffffff',
+              borderBottom: '1px solid #eeeeee',
             }}
           >
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -231,8 +188,8 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
-                  padding: '6px 10px 6px 30px',
-                  fontSize: '12.5px',
+                  padding: '5px 10px 5px 30px',
+                  fontSize: '12px',
                   border: '1px solid #ced4da',
                   borderRadius: '4px',
                   width: '200px',
@@ -242,75 +199,80 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
               />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {searchTerm && (
-                <span style={{ fontSize: '11px', color: '#666666' }}>
-                  Showing {filteredAndSorted.length} of {intervals.length} intervals
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                title="Download CSV snapshot"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '5px 12px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  borderRadius: '4px',
-                  border: '1px solid #ced4da',
-                  backgroundColor: '#ffffff',
-                  color: '#000000',
-                  cursor: 'pointer',
-                }}
-              >
-                <Download size={13} />
-                Export CSV
-              </button>
-            </div>
+            {searchTerm && (
+              <span style={{ fontSize: '11px', color: '#666666' }}>
+                Showing {filteredAndSorted.length} of {intervals.length} intervals
+              </span>
+            )}
           </div>
 
-          {/* Table with Sticky Header */}
-          <div style={{ maxHeight: '480px', overflowY: 'auto', border: '1px solid #eeeeee', borderRadius: '6px' }}>
-            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-              <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa', zIndex: 2 }}>
-                <tr>
-                  <th className="sortable" onClick={() => handleSort('start_time')} style={{ textAlign: 'left', padding: '10px 12px' }}>
+          {/* Table matching Page 2 style */}
+          <div style={{ maxHeight: '480px', overflowY: 'auto', overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+              <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f5f5f5', zIndex: 2 }}>
+                <tr style={{ textAlign: 'left', borderBottom: '1px solid #d0d0d0' }}>
+                  <th
+                    className="sortable"
+                    onClick={() => handleSort('start_time')}
+                    style={{ padding: '0.6rem 0.75rem', cursor: 'pointer' }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       Time (UTC) <ArrowUpDown size={11} />
                     </div>
                   </th>
                   {resolution === 'half_hourly' && (
-                    <th className="sortable numeric-cell" onClick={() => handleSort('settlement_period')} style={{ textAlign: 'right', padding: '10px 12px' }}>
+                    <th
+                      className="sortable"
+                      onClick={() => handleSort('settlement_period')}
+                      style={{ padding: '0.6rem 0.75rem', textAlign: 'right', cursor: 'pointer' }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
-                        Period <ArrowUpDown size={11} />
+                        SP <ArrowUpDown size={11} />
                       </div>
                     </th>
                   )}
-                  <th className="sortable numeric-cell" onClick={() => handleSort('forecast_generation_mw')} style={{ textAlign: 'right', padding: '10px 12px' }}>
+                  <th
+                    className="sortable"
+                    onClick={() => handleSort('forecast_generation_mw')}
+                    style={{ padding: '0.6rem 0.75rem', textAlign: 'right', cursor: 'pointer' }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
-                      Predicted (MW) <ArrowUpDown size={11} />
+                      Forecast (MW) <ArrowUpDown size={11} />
                     </div>
                   </th>
-                  <th className="sortable numeric-cell" onClick={() => handleSort('actual_generation_mw')} style={{ textAlign: 'right', padding: '10px 12px' }}>
+                  <th
+                    className="sortable"
+                    onClick={() => handleSort('actual_generation_mw')}
+                    style={{ padding: '0.6rem 0.75rem', textAlign: 'right', cursor: 'pointer' }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                       Actual (MW) <ArrowUpDown size={11} />
                     </div>
                   </th>
-                  <th className="sortable numeric-cell" onClick={() => handleSort('error_mw')} style={{ textAlign: 'right', padding: '10px 12px' }}>
+                  <th
+                    className="sortable"
+                    onClick={() => handleSort('error_mw')}
+                    style={{ padding: '0.6rem 0.75rem', textAlign: 'right', cursor: 'pointer' }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                       Difference (MW) <ArrowUpDown size={11} />
                     </div>
                   </th>
-                  <th className="sortable numeric-cell" onClick={() => handleSort('pct_error')} style={{ textAlign: 'right', padding: '10px 12px' }}>
+                  <th
+                    className="sortable"
+                    onClick={() => handleSort('pct_error')}
+                    style={{ padding: '0.6rem 0.75rem', textAlign: 'right', cursor: 'pointer' }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                       Diff (%) <ArrowUpDown size={11} />
                     </div>
                   </th>
-                  <th style={{ textAlign: 'left', padding: '10px 12px' }}>Publish Time (UTC)</th>
-                  <th className="sortable numeric-cell" onClick={() => handleSort('horizon_hours')} style={{ textAlign: 'right', padding: '10px 12px' }}>
+                  <th style={{ padding: '0.6rem 0.75rem' }}>Publish Time (UTC)</th>
+                  <th
+                    className="sortable"
+                    onClick={() => handleSort('horizon_hours')}
+                    style={{ padding: '0.6rem 0.75rem', textAlign: 'right', cursor: 'pointer' }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                       Lead Time <ArrowUpDown size={11} />
                     </div>
@@ -334,39 +296,40 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
                     const errorVal = row.error_mw;
                     const errorDisplay =
                       errorVal !== null && errorVal !== undefined
-                        ? `${errorVal > 0 ? '+' : ''}${Math.round(errorVal).toLocaleString()}`
+                        ? `${errorVal > 0 ? '+' : ''}${Math.round(errorVal).toLocaleString()} MW`
                         : '—';
 
                     return (
-                      <tr key={row.start_time} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                        <td style={{ fontWeight: 600, fontFamily: 'monospace', padding: '8px 12px' }}>{timeStr}</td>
+                      <tr key={row.start_time} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ fontWeight: 600, padding: '0.55rem 0.75rem' }}>{timeStr}</td>
                         {resolution === 'half_hourly' && (
-                          <td className="numeric-cell" style={{ textAlign: 'right', padding: '8px 12px' }}>{row.settlement_period ?? '—'}</td>
+                          <td style={{ textAlign: 'right', padding: '0.55rem 0.75rem' }}>
+                            {row.settlement_period ?? '—'}
+                          </td>
                         )}
-                        <td className="numeric-cell" style={{ textAlign: 'right', padding: '8px 12px' }}>
-                          {row.forecast_generation_mw !== null ? Math.round(row.forecast_generation_mw).toLocaleString() : '—'}
+                        <td style={{ textAlign: 'right', fontWeight: 600, padding: '0.55rem 0.75rem' }}>
+                          {row.forecast_generation_mw !== null ? `${Math.round(row.forecast_generation_mw).toLocaleString()} MW` : '—'}
                         </td>
-                        <td className="numeric-cell" style={{ textAlign: 'right', padding: '8px 12px' }}>
-                          {row.actual_generation_mw !== null ? Math.round(row.actual_generation_mw).toLocaleString() : '—'}
+                        <td style={{ textAlign: 'right', color: PRIMARY_COLOR, padding: '0.55rem 0.75rem' }}>
+                          {row.actual_generation_mw !== null ? `${Math.round(row.actual_generation_mw).toLocaleString()} MW` : '—'}
                         </td>
                         <td
-                          className="numeric-cell"
                           style={{
                             textAlign: 'right',
-                            padding: '8px 12px',
+                            padding: '0.55rem 0.75rem',
                             fontWeight: 700,
                             color: errorVal !== null && errorVal !== undefined && errorVal > 0 ? '#b45309' : PRIMARY_COLOR,
                           }}
                         >
                           {errorDisplay}
                         </td>
-                        <td className="numeric-cell" style={{ textAlign: 'right', padding: '8px 12px' }}>
+                        <td style={{ textAlign: 'right', padding: '0.55rem 0.75rem' }}>
                           {row.pct_error !== null && row.pct_error !== undefined
                             ? `${row.pct_error > 0 ? '+' : ''}${row.pct_error.toFixed(1)}%`
                             : '—'}
                         </td>
-                        <td style={{ fontSize: '11px', color: '#495057', padding: '8px 12px' }}>{pubTimeStr}</td>
-                        <td className="numeric-cell" style={{ textAlign: 'right', padding: '8px 12px' }}>
+                        <td style={{ fontSize: '0.75rem', color: '#666', padding: '0.55rem 0.75rem' }}>{pubTimeStr}</td>
+                        <td style={{ textAlign: 'right', color: '#666', padding: '0.55rem 0.75rem' }}>
                           {row.horizon_hours !== null ? `${row.horizon_hours.toFixed(1)}h` : '—'}
                         </td>
                       </tr>

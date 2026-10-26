@@ -813,8 +813,8 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
             stats={activeAccuracy.box_plot}
             subtitle={
               windowMode === 'week'
-                ? `Showing past 7 days error spread before ${formatDate(selectedDate)} (${formatDate(startDate)} – ${formatDate(endDate)}). Left of 0 = predicted too low; Right of 0 = predicted too high.`
-                : 'Showing full month of January 2026 error spread. Left of 0 = predicted too low; Right of 0 = predicted too high.'
+                ? `Showing past 7 days error spread before ${formatDate(selectedDate)} (${formatDate(startDate)} – ${formatDate(endDate)}).`
+                : 'Showing full month of January 2026 error spread.'
             }
           />
         </section>
@@ -863,7 +863,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                   ? `${(kpis.normalised_mae * 100).toFixed(1)}%`
                   : null
             }
-            subtext={`Normalized by mean outturn (${kpis?.mean_actual_mw ? `${(kpis.mean_actual_mw / 1000).toFixed(2)} GW` : 'mean power'})`}
             tooltip="MAE divided by mean actual generation. Replaces MAPE to prevent infinite error distortions during calm or near-zero wind periods."
             width="100%"
             height="86px"
