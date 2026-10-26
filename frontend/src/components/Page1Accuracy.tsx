@@ -76,7 +76,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
   accuracy,
   days,
   selectedDate,
-  onSelectDate: _onSelectDate,
   cutoffTime = '09:00',
   dayDetail,
   isLoadingDayDetail,
@@ -88,7 +87,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
   const [windowSummary, setWindowSummary] = useState<SummaryResponse | null>(null);
   const [windowAccuracy, setWindowAccuracy] = useState<AccuracyResponse | null>(null);
   const [windowDays, setWindowDays] = useState<DaySummaryItem[]>([]);
-  const [_isLoadingWindow, setIsLoadingWindow] = useState<boolean>(false);
 
   // Calculate window date boundaries (supports Dec 2025 when simulating early Jan)
   const { startDate, endDate } = getRangeForWindow(selectedDate, windowMode);
@@ -97,7 +95,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
   useEffect(() => {
     let isMounted = true;
     const fetchWindowData = async () => {
-      setIsLoadingWindow(true);
       try {
         const [sumRes, accRes, daysRes] = await Promise.all([
           apiClient.getSummary(cutoffTime, startDate, endDate),
@@ -111,8 +108,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         }
       } catch (err) {
         console.error('Failed to load window data:', err);
-      } finally {
-        if (isMounted) setIsLoadingWindow(false);
       }
     };
 

@@ -67,8 +67,9 @@ export const App: React.FC = () => {
       setSummaryData(sumRes);
       setDaysList(daysRes.days);
       setAccuracyData(accRes);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load analytical summary from engine.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load analytical summary from engine.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -80,7 +81,7 @@ export const App: React.FC = () => {
     try {
       const detail = await apiClient.getDayDetail(selectedDate, cutoffTime, 'half_hourly');
       setDayDetail(detail);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching day detail:', err);
     } finally {
       setLoadingDayDetail(false);

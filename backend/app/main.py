@@ -3,12 +3,14 @@ backend/app/main.py
 FastAPI application entry point for the Wind Forecast Accuracy Portal API.
 """
 
-from contextlib import asynccontextmanager
+import os
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.staticfiles import StaticFiles
 
 from app.store import data_store
 from app.routes import router
@@ -63,13 +65,23 @@ app.add_middleware(
 # Include API routes
 app.include_router(router)
 
+# Mount static frontend if built dist exists (Docker / Production single-container deployment)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+frontend_dist = os.path.join(project_root, "frontend", "dist")
+bundled_static = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
-@app.get("/", include_in_schema=False)
-def root():
-    """Redirects root path to interactive Swagger API documentation."""
-    return RedirectResponse(url="/docs")
+if os.path.isdir(frontend_dist):
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+elif os.path.isdir(bundled_static):
+    app.mount("/", StaticFiles(directory=bundled_static, html=True), name="static")
+else:
+    @app.get("/", include_in_schema=False)
+    def root():
+        """Redirects root path to interactive Swagger API documentation when frontend is not built."""
+        return RedirectResponse(url="/docs")
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)

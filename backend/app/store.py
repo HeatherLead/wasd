@@ -11,23 +11,18 @@ import os
 import re
 import json
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
 from app.pipeline.selection import select_decision_forecasts
-from app.pipeline.join import join_forecasts_and_actuals, audit_quality_and_missing
+from app.pipeline.join import join_forecasts_and_actuals
 from app.metrics import (
     compute_kpi_summary,
-    calculate_bias,
-    calculate_mae,
-    calculate_rmse,
-    calculate_nmae,
     calculate_shortfall_energy_mwh,
     calculate_surplus_energy_mwh,
     calculate_boxplot_statistics,
-    calculate_buy_range_for_intervals,
 )
 from app.uncertainty import (
     build_error_history,

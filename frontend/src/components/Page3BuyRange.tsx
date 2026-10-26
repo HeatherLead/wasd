@@ -25,7 +25,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { apiClient, type BuyRangeResponse } from '../api/client';
-import { ShieldAlert, Zap, Info, CheckCircle } from 'lucide-react';
+import { ShieldAlert, Zap, CheckCircle } from 'lucide-react';
 import { PRIMARY_COLOR, PRIMARY_COLOR_AREA } from '../theme';
 import { formatDate } from '../utils/date';
 
@@ -134,7 +134,7 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
   const optimalPeakLow = Math.min(peakForecast, peakEstimated);
   const optimalPeakHigh = Math.max(peakForecast, peakEstimated);
   const optimalPeakSpread = Math.max(0, optimalPeakHigh - optimalPeakLow);
-  const severeDownsideMwh = totals?.recommended_need_total_mwh ?? totals?.high_need_total_mwh ?? 0;
+  const severeDownsideMwh = totals?.high_need_total_mwh ?? 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

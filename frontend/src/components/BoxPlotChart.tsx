@@ -19,9 +19,6 @@ interface BoxPlotChartProps {
 
 export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
   stats,
-  p50AbsMw: _p50AbsMw,
-  p90AbsMw: _p90AbsMw,
-  p95AbsMw: _p95AbsMw,
   subtitle,
 }) => {
   const [hoveredValue, setHoveredValue] = useState<string | null>(null);

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Union
 import pandas as pd
-import numpy as np
 
 
 def normalize_actuals(raw_data: Union[List[Dict[str, Any]], pd.DataFrame]) -> pd.DataFrame:

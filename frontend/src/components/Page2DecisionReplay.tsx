@@ -74,8 +74,9 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
         28
       );
       setData(res);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load day-ahead forecast uncertainty.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load day-ahead forecast uncertainty.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -617,7 +618,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                     domain={[0, 100]}
                   />
                   <Tooltip
-                    formatter={(val: any) => [`${Number(val).toFixed(1)}%`, 'Shortfall Prob']}
+                    formatter={(val) => [`${Number(val).toFixed(1)}%`, 'Shortfall Prob']}
                     labelFormatter={(lbl) => `Time: ${lbl} UTC`}
                     contentStyle={{ fontSize: '0.8rem', border: '1px solid #e0e0e0', borderRadius: '6px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
                   />

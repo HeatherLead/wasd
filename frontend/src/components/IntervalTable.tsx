@@ -52,16 +52,19 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
     }
 
     list.sort((a, b) => {
-      let valA: any = a[sortField];
-      let valB: any = b[sortField];
+      const valA = a[sortField];
+      const valB = b[sortField];
 
       if (valA === null || valA === undefined) return 1;
       if (valB === null || valB === undefined) return -1;
 
-      if (typeof valA === 'string') {
+      if (typeof valA === 'string' && typeof valB === 'string') {
         return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
       }
-      return sortOrder === 'asc' ? valA - valB : valB - valA;
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return sortOrder === 'asc' ? valA - valB : valB - valA;
+      }
+      return 0;
     });
 
     return list;
