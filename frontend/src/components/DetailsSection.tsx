@@ -13,6 +13,8 @@ import { IntervalTable } from './IntervalTable';
 import { ForecastRevisions } from './ForecastRevisions';
 import { WorstIntervals } from './WorstIntervals';
 import type { DayDetailResponse, SummaryResponse } from '../api/client';
+import { PRIMARY_COLOR } from '../theme';
+import { formatDate } from '../utils/date';
 
 interface DetailsSectionProps {
   dayDetail: DayDetailResponse | null;
@@ -93,9 +95,9 @@ export const DetailsSection: React.FC<DetailsSectionProps> = ({
                 padding: '0.5rem 1rem',
                 fontSize: '0.85rem',
                 fontWeight: activeTab === 'table' ? 600 : 500,
-                color: activeTab === 'table' ? '#000000' : '#666666',
+                color: activeTab === 'table' ? PRIMARY_COLOR : '#666666',
                 border: 'none',
-                borderBottom: activeTab === 'table' ? '2px solid #000000' : '2px solid transparent',
+                borderBottom: activeTab === 'table' ? `2px solid ${PRIMARY_COLOR}` : '2px solid transparent',
                 background: 'transparent',
                 cursor: 'pointer',
               }}
@@ -113,9 +115,9 @@ export const DetailsSection: React.FC<DetailsSectionProps> = ({
                 padding: '0.5rem 1rem',
                 fontSize: '0.85rem',
                 fontWeight: activeTab === 'revisions' ? 600 : 500,
-                color: activeTab === 'revisions' ? '#000000' : '#666666',
+                color: activeTab === 'revisions' ? PRIMARY_COLOR : '#666666',
                 border: 'none',
-                borderBottom: activeTab === 'revisions' ? '2px solid #000000' : '2px solid transparent',
+                borderBottom: activeTab === 'revisions' ? `2px solid ${PRIMARY_COLOR}` : '2px solid transparent',
                 background: 'transparent',
                 cursor: 'pointer',
               }}
@@ -133,9 +135,9 @@ export const DetailsSection: React.FC<DetailsSectionProps> = ({
                 padding: '0.5rem 1rem',
                 fontSize: '0.85rem',
                 fontWeight: activeTab === 'worst' ? 600 : 500,
-                color: activeTab === 'worst' ? '#000000' : '#666666',
+                color: activeTab === 'worst' ? PRIMARY_COLOR : '#666666',
                 border: 'none',
-                borderBottom: activeTab === 'worst' ? '2px solid #000000' : '2px solid transparent',
+                borderBottom: activeTab === 'worst' ? `2px solid ${PRIMARY_COLOR}` : '2px solid transparent',
                 background: 'transparent',
                 cursor: 'pointer',
               }}
@@ -153,9 +155,9 @@ export const DetailsSection: React.FC<DetailsSectionProps> = ({
                 padding: '0.5rem 1rem',
                 fontSize: '0.85rem',
                 fontWeight: activeTab === 'quality' ? 600 : 500,
-                color: activeTab === 'quality' ? '#000000' : '#666666',
+                color: activeTab === 'quality' ? PRIMARY_COLOR : '#666666',
                 border: 'none',
-                borderBottom: activeTab === 'quality' ? '2px solid #000000' : '2px solid transparent',
+                borderBottom: activeTab === 'quality' ? `2px solid ${PRIMARY_COLOR}` : '2px solid transparent',
                 background: 'transparent',
                 cursor: 'pointer',
               }}
@@ -188,10 +190,10 @@ export const DetailsSection: React.FC<DetailsSectionProps> = ({
                     backgroundColor: '#ffffff',
                   }}
                 >
-                  <option value={`${selectedDate}T06:00:00Z`}>{selectedDate} 06:00 UTC (Morning Ramp)</option>
-                  <option value={`${selectedDate}T12:00:00Z`}>{selectedDate} 12:00 UTC (Midday)</option>
-                  <option value={`${selectedDate}T18:00:00Z`}>{selectedDate} 18:00 UTC (Evening Peak)</option>
-                  <option value={`${selectedDate}T22:00:00Z`}>{selectedDate} 22:00 UTC (Night)</option>
+                  <option value={`${selectedDate}T06:00:00Z`}>{formatDate(selectedDate)} 06:00 UTC (Morning Ramp)</option>
+                  <option value={`${selectedDate}T12:00:00Z`}>{formatDate(selectedDate)} 12:00 UTC (Midday)</option>
+                  <option value={`${selectedDate}T18:00:00Z`}>{formatDate(selectedDate)} 18:00 UTC (Evening Peak)</option>
+                  <option value={`${selectedDate}T22:00:00Z`}>{formatDate(selectedDate)} 22:00 UTC (Night)</option>
                 </select>
               </div>
 

@@ -23,11 +23,12 @@ import { Page1Accuracy } from './components/Page1Accuracy';
 import { Page2DecisionReplay } from './components/Page2DecisionReplay';
 import { Page3BuyRange } from './components/Page3BuyRange';
 import { DetailsSection } from './components/DetailsSection';
+import { CustomDropdown } from './components/CustomDropdown';
+import { PRIMARY_COLOR } from './theme';
 import {
   BarChart2,
   Clock,
   ShoppingCart,
-  RefreshCw,
   AlertCircle,
 } from 'lucide-react';
 
@@ -50,13 +51,11 @@ export const App: React.FC = () => {
   // Loading and Error States
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingDayDetail, setLoadingDayDetail] = useState<boolean>(false);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // 1. Fetch Global Data (Summary, Days list, Accuracy breakdowns) when cutoff changes
-  const fetchGlobalData = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+  const fetchGlobalData = useCallback(async () => {
+    setLoading(true);
     setError(null);
 
     try {
@@ -73,7 +72,6 @@ export const App: React.FC = () => {
       setError(err?.message || 'Failed to load analytical summary from engine.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, [cutoffTime]);
 
@@ -123,66 +121,25 @@ export const App: React.FC = () => {
           {/* Brand & Context */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <div style={{ width: '9px', height: '9px', backgroundColor: '#000000', borderRadius: '50%' }} />
+              <div style={{ width: '9px', height: '9px', backgroundColor: PRIMARY_COLOR, borderRadius: '50%', boxShadow: '0 0 0 2px rgba(20, 137, 55, 0.25)' }} />
               <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#000000' }}>
-                GB Wholesale Day-Ahead Wind Forecast Accuracy Portal
+                Wind Forecast Analysis
               </h1>
             </div>
-            <p style={{ margin: '0.2rem 0 0 1.2rem', fontSize: '0.8rem', color: '#666666' }}>
-              Empirical decision support for UK electricity procurement (January 2026 delivery days).
-            </p>
           </div>
 
           {/* Global Cutoff Selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#f5f5f5', padding: '0.35rem 0.75rem', border: '1px solid #cccccc' }}>
-              <Clock size={15} color="#000000" />
-              <label htmlFor="cutoff-select" style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                D-1 Decision Cutoff:
-              </label>
-              <select
-                id="cutoff-select"
-                value={cutoffTime}
-                onChange={(e) => setCutoffTime(e.target.value)}
-                style={{
-                  padding: '0.25rem 0.5rem',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  backgroundColor: '#ffffff',
-                  color: '#000000',
-                  border: '1px solid #000000',
-                  cursor: 'pointer',
-                }}
-              >
-                {cutoffPresets.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => fetchGlobalData(true)}
-              disabled={refreshing}
-              title="Refresh data from engine"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                padding: '0.45rem 0.8rem',
-                backgroundColor: '#ffffff',
-                color: '#000000',
-                border: '1px solid #000000',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: refreshing ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <RefreshCw size={14} className={refreshing ? 'spinning' : ''} />
-              {refreshing ? 'Updating...' : 'Refresh'}
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <CustomDropdown
+              labelPrefix="D-1 Cutoff"
+              icon={<Clock size={14} color={PRIMARY_COLOR} />}
+              options={cutoffPresets.map((p) => ({
+                value: p.value,
+                label: p.label,
+              }))}
+              value={cutoffTime}
+              onChange={(val) => setCutoffTime(val)}
+            />
           </div>
         </div>
 
@@ -198,9 +155,9 @@ export const App: React.FC = () => {
                 flexDirection: 'column',
                 alignItems: 'flex-start',
                 padding: '0.65rem 1.25rem',
-                backgroundColor: activePage === 'accuracy' ? '#000000' : '#ffffff',
+                backgroundColor: activePage === 'accuracy' ? PRIMARY_COLOR : '#ffffff',
                 color: activePage === 'accuracy' ? '#ffffff' : '#000000',
-                border: '1px solid #000000',
+                border: `1px solid ${activePage === 'accuracy' ? PRIMARY_COLOR : '#000000'}`,
                 cursor: 'pointer',
                 textAlign: 'left',
                 minWidth: '240px',
@@ -209,9 +166,9 @@ export const App: React.FC = () => {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
                 <BarChart2 size={16} />
-                1. Accuracy (The Evidence)
+                1. Accuracy
               </div>
-              <span style={{ fontSize: '0.75rem', opacity: activePage === 'accuracy' ? 0.85 : 0.65, marginTop: '0.15rem' }}>
+              <span style={{ fontSize: '0.75rem', opacity: activePage === 'accuracy' ? 0.9 : 0.65, marginTop: '0.15rem' }}>
                 "How good were the forecasts?"
               </span>
             </button>
@@ -225,9 +182,9 @@ export const App: React.FC = () => {
                 flexDirection: 'column',
                 alignItems: 'flex-start',
                 padding: '0.65rem 1.25rem',
-                backgroundColor: activePage === 'replay' ? '#000000' : '#ffffff',
+                backgroundColor: activePage === 'replay' ? PRIMARY_COLOR : '#ffffff',
                 color: activePage === 'replay' ? '#ffffff' : '#000000',
-                border: '1px solid #000000',
+                border: `1px solid ${activePage === 'replay' ? PRIMARY_COLOR : '#000000'}`,
                 cursor: 'pointer',
                 textAlign: 'left',
                 minWidth: '240px',
@@ -236,9 +193,9 @@ export const App: React.FC = () => {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
                 <Clock size={16} />
-                2. Decision Replay (The Trader's View)
+                2. Decision Replay
               </div>
-              <span style={{ fontSize: '0.75rem', opacity: activePage === 'replay' ? 0.85 : 0.65, marginTop: '0.15rem' }}>
+              <span style={{ fontSize: '0.75rem', opacity: activePage === 'replay' ? 0.9 : 0.65, marginTop: '0.15rem' }}>
                 "What did the trader see on D-1?"
               </span>
             </button>
@@ -252,9 +209,9 @@ export const App: React.FC = () => {
                 flexDirection: 'column',
                 alignItems: 'flex-start',
                 padding: '0.65rem 1.25rem',
-                backgroundColor: activePage === 'buy-range' ? '#000000' : '#ffffff',
+                backgroundColor: activePage === 'buy-range' ? PRIMARY_COLOR : '#ffffff',
                 color: activePage === 'buy-range' ? '#ffffff' : '#000000',
-                border: '1px solid #000000',
+                border: `1px solid ${activePage === 'buy-range' ? PRIMARY_COLOR : '#000000'}`,
                 cursor: 'pointer',
                 textAlign: 'left',
                 minWidth: '240px',
@@ -263,9 +220,9 @@ export const App: React.FC = () => {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
                 <ShoppingCart size={16} />
-                3. Buy Range (The Recommendation)
+                3. Buy Range
               </div>
-              <span style={{ fontSize: '0.75rem', opacity: activePage === 'buy-range' ? 0.85 : 0.65, marginTop: '0.15rem' }}>
+              <span style={{ fontSize: '0.75rem', opacity: activePage === 'buy-range' ? 0.9 : 0.65, marginTop: '0.15rem' }}>
                 "What should we plan to buy?"
               </span>
             </button>
@@ -288,7 +245,7 @@ export const App: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Page 1: Accuracy (The Evidence) */}
+            {/* Page 1: Accuracy */}
             {activePage === 'accuracy' && (
               <Page1Accuracy
                 summary={summaryData}
@@ -345,18 +302,6 @@ export const App: React.FC = () => {
           </>
         )}
       </main>
-
-      {/* Footer */}
-      <footer style={{ borderTop: '1px solid #e0e0e0', padding: '1.5rem 2rem', backgroundColor: '#ffffff', fontSize: '0.8rem', color: '#666666' }}>
-        <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            Data Sources: Elexon BMRS <code style={{ color: '#000000' }}>WINDFOR/stream</code> (Hourly Forecasts) and <code style={{ color: '#000000' }}>FUELHH/stream</code> (Half-Hourly WIND Actuals).
-          </div>
-          <div>
-            Replay Mode: January 2026 Delivery | Decision Cutoff: {cutoffTime} UTC (D-1) | Strict Zero Look-Ahead Bias
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };

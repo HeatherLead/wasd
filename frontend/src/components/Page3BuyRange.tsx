@@ -29,6 +29,8 @@ import {
 } from 'recharts';
 import { apiClient, type BuyRangeResponse } from '../api/client';
 import { ShieldAlert, ArrowLeft, Info } from 'lucide-react';
+import { PRIMARY_COLOR, PRIMARY_COLOR_AREA } from '../theme';
+import { formatDate } from '../utils/date';
 
 interface Page3BuyRangeProps {
   selectedDate: string;
@@ -138,9 +140,10 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
             onClick={handleApplyDemand}
             style={{
               padding: '0.5rem 1.25rem',
-              backgroundColor: '#000000',
+              backgroundColor: PRIMARY_COLOR,
               color: '#ffffff',
-              border: 'none',
+              border: `1px solid ${PRIMARY_COLOR}`,
+              borderRadius: '4px',
               fontWeight: 600,
               fontSize: '0.9rem',
               cursor: 'pointer',
@@ -215,14 +218,14 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
   const lowMwh = totals?.low_need_total_mwh ?? 0;
   const highMwh = totals?.high_need_total_mwh ?? 0;
 
-  const headline = `For ${selectedDate}, plan to buy between ${Math.round(lowMwh).toLocaleString()} MWh and ${Math.round(highMwh).toLocaleString()} MWh across the day (peak power need: ${Math.round(peakLow).toLocaleString()} MW to ${Math.round(peakHigh).toLocaleString()} MW).`;
+  const headline = `For ${formatDate(selectedDate)}, plan to buy between ${Math.round(lowMwh).toLocaleString()} MWh and ${Math.round(highMwh).toLocaleString()} MWh across the day (peak power need: ${Math.round(peakLow).toLocaleString()} MW to ${Math.round(peakHigh).toLocaleString()} MW).`;
 
   return (
     <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
       {/* 1. Data-Driven Headline Banner */}
       <section
         style={{
-          borderLeft: '4px solid #000000',
+          borderLeft: `4px solid ${PRIMARY_COLOR}`,
           padding: '1rem 1.25rem',
           backgroundColor: '#fafafa',
           borderTop: '1px solid #e0e0e0',
@@ -231,7 +234,7 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
         }}
       >
         <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#666666', fontWeight: 600, marginBottom: '0.25rem' }}>
-          Day-Ahead Procurement Recommendation ({selectedDate})
+          Day-Ahead Procurement Recommendation ({formatDate(selectedDate)})
         </div>
         <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#000000', lineHeight: 1.4 }}>
           {headline}
@@ -241,8 +244,8 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
       {/* 2. Three Summary Cards */}
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
         {/* Card 1: Peak Power Range */}
-        <div style={{ background: '#ffffff', border: '2px solid #000000', padding: '1.25rem' }}>
-          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#666666', textTransform: 'uppercase' }}>
+        <div style={{ background: '#ffffff', border: `2px solid ${PRIMARY_COLOR}`, borderRadius: '4px', padding: '1.25rem' }}>
+          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: PRIMARY_COLOR, textTransform: 'uppercase' }}>
             Peak Power Buy Range
           </div>
           <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#000000', marginTop: '0.4rem' }}>
@@ -288,7 +291,7 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#000000' }}>
-              Recommended Procurement Band Across Day D ({selectedDate})
+              Recommended Procurement Band Across Day D ({formatDate(selectedDate)})
             </h3>
             <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#666666' }}>
               Shaded band covers empirical P10 (Surplus Risk) to P90 (Shortfall Protection). All bounds clamped at ≥ 0 MW.
@@ -331,12 +334,12 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                     const base = payload.find((p) => p.dataKey === 'baseNeedMw')?.value as number;
                     return (
                       <div style={{ backgroundColor: '#ffffff', border: '1px solid #000000', padding: '0.6rem 0.8rem', fontSize: '0.8rem', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }}>
-                        <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{selectedDate} @ {label} UTC</div>
-                        <div style={{ color: '#000000', fontWeight: 700 }}>
+                        <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{formatDate(selectedDate)} @ {label} UTC</div>
+                        <div style={{ color: PRIMARY_COLOR, fontWeight: 700 }}>
                           Buy Range: {low?.toLocaleString()} – {high?.toLocaleString()} MW
                         </div>
                         <div style={{ color: '#333333', marginTop: '0.2rem' }}>
-                          Central Estimate (P50): <strong>{central?.toLocaleString()} MW</strong>
+                          Central Estimate (P50): <strong style={{ color: PRIMARY_COLOR }}>{central?.toLocaleString()} MW</strong>
                         </div>
                         <div style={{ color: '#777777' }}>
                           Base Need (Zero Error): {base?.toLocaleString()} MW
@@ -351,9 +354,10 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                 <Area
                   type="monotone"
                   dataKey="rangeBand"
-                  stroke="#888888"
-                  fill="#ebebeb"
-                  fillOpacity={0.65}
+                  stroke={PRIMARY_COLOR}
+                  strokeOpacity={0.4}
+                  fill={PRIMARY_COLOR_AREA}
+                  fillOpacity={1}
                   name="Buy Range (P10 to P90 Deficit Protection)"
                 />
 
@@ -362,8 +366,8 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                   type="monotone"
                   dataKey="centralNeedMw"
                   name="Central Estimate (Base + P50 Error)"
-                  stroke="#000000"
-                  strokeWidth={2.5}
+                  stroke={PRIMARY_COLOR}
+                  strokeWidth={3}
                   dot={false}
                 />
 
@@ -406,7 +410,7 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
         <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #eeeeee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div style={{ fontSize: '0.8rem', color: '#555555' }}>
             <span style={{ fontWeight: 600, color: '#000000' }}>Empirical Basis: </span>
-            {data?.note ?? `Based on ${data?.prior_days_count ?? 0} days of January 2026 history prior to ${selectedDate}. Historical range, not a guarantee.`}
+            {data?.note ?? `Based on ${data?.prior_days_count ?? 0} days of January 2026 history prior to ${formatDate(selectedDate)}. Historical range, not a guarantee.`}
           </div>
 
           {quantiles && (

@@ -20,6 +20,8 @@ import {
 import { apiClient } from '../api/client';
 import type { ForecastRevisionsResponse } from '../api/client';
 import { History } from 'lucide-react';
+import { PRIMARY_COLOR } from '../theme';
+import { formatDate } from '../utils/date';
 
 interface ForecastRevisionsProps {
   targetTime: string;
@@ -87,7 +89,7 @@ export const ForecastRevisions: React.FC<ForecastRevisionsProps> = ({
   });
 
   const decisionRev = data.revisions.find((r) => r.is_decision_forecast);
-  const targetLabel = `${targetTime.substring(0, 10)} ${targetTime.substring(11, 16)} UTC`;
+  const targetLabel = `${formatDate(targetTime.substring(0, 10))} ${targetTime.substring(11, 16)} UTC`;
 
   return (
     <div className="section-card" style={{ marginTop: '20px' }}>
@@ -106,7 +108,7 @@ export const ForecastRevisions: React.FC<ForecastRevisionsProps> = ({
           <div
             style={{
               padding: '6px 12px',
-              border: '1px solid #000000',
+              border: `1px solid ${PRIMARY_COLOR}`,
               borderRadius: '4px',
               backgroundColor: '#f8f9fa',
               fontSize: '11px',
@@ -143,12 +145,12 @@ export const ForecastRevisions: React.FC<ForecastRevisionsProps> = ({
                   const d = payload[0].payload;
                   return (
                     <div style={{ backgroundColor: '#ffffff', border: '1px solid #000000', padding: '8px 12px', fontSize: '11px' }}>
-                      <div style={{ fontWeight: 700, marginBottom: '4px' }}>Published: {d.publishTime}</div>
+                      <div style={{ fontWeight: 700, marginBottom: '4px' }}>Published: {formatDate(d.publishTime)} {d.publishTime.substring(11, 16)} UTC</div>
                       <div>Forecast: <strong>{Math.round(d.forecast).toLocaleString()} MW</strong></div>
                       <div>Actual Outturn: <strong>{Math.round(d.actual).toLocaleString()} MW</strong></div>
                       <div>Lead Time: {d.horizon} hours ahead</div>
                       {d.isDecision && (
-                        <div style={{ marginTop: '4px', fontWeight: 700, color: '#000000' }}>
+                        <div style={{ marginTop: '4px', fontWeight: 700, color: PRIMARY_COLOR }}>
                           ★ LOCKED DECISION FORECAST (D-1 Cutoff)
                         </div>
                       )}
@@ -186,8 +188,8 @@ export const ForecastRevisions: React.FC<ForecastRevisionsProps> = ({
                     cx={props.cx}
                     cy={props.cy}
                     r={isDec ? 6 : 3}
-                    fill={isDec ? '#000000' : '#ffffff'}
-                    stroke="#000000"
+                    fill={isDec ? PRIMARY_COLOR : '#ffffff'}
+                    stroke={isDec ? PRIMARY_COLOR : '#000000'}
                     strokeWidth={isDec ? 2 : 1.5}
                   />
                 );
@@ -218,7 +220,7 @@ export const ForecastRevisions: React.FC<ForecastRevisionsProps> = ({
                   fontWeight: rev.is_decision_forecast ? 700 : 400,
                 }}
               >
-                <td>{rev.publish_time.replace('T', ' ').replace('+00:00', '')}</td>
+                <td>{formatDate(rev.publish_time)} {rev.publish_time.substring(11, 16)} UTC</td>
                 <td className="numeric-cell">{rev.horizon_hours.toFixed(1)}h ahead</td>
                 <td className="numeric-cell">{Math.round(rev.forecast_generation_mw).toLocaleString()} MW</td>
                 <td className="numeric-cell">
@@ -228,7 +230,7 @@ export const ForecastRevisions: React.FC<ForecastRevisionsProps> = ({
                 </td>
                 <td>
                   {rev.is_decision_forecast ? (
-                    <span className="badge-ok" style={{ backgroundColor: '#000000', color: '#ffffff' }}>
+                    <span className="badge-ok" style={{ backgroundColor: PRIMARY_COLOR, color: '#ffffff', borderColor: PRIMARY_COLOR }}>
                       ★ DECISION-TIME BASELINE
                     </span>
                   ) : rev.is_eligible ? (

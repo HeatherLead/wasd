@@ -16,6 +16,16 @@
   --border-medium: #ced4da;
   --border-dark: #000000;
 
+  --primary: #148937;
+  --primary-color: #148937;
+  --color-primary: #148937;
+  --primary-hover: #0f6c2b;
+  --primary-active: #0c5622;
+  --primary-light: #e8f5ec;
+  --primary-subtle: #f0f9f3;
+  --primary-border: #148937;
+  --primary-glow: rgba(20, 137, 55, 0.2);
+
   --accent-black: #000000;
   --accent-gray: #495057;
   --accent-badge: #f1f3f5;
@@ -59,6 +69,62 @@ button, input, select {
   font-family: inherit;
   font-size: inherit;
   color: inherit;
+}
+
+/* Primary Button & Action Styles */
+.btn-primary, button.btn-primary, .button-primary {
+  background-color: var(--color-primary);
+  color: #ffffff !important;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-primary:hover:not(:disabled), button.btn-primary:hover:not(:disabled), .button-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.btn-primary:active:not(:disabled), button.btn-primary:active:not(:disabled), .button-primary:active:not(:disabled) {
+  background-color: var(--primary-active);
+  border-color: var(--primary-active);
+}
+
+.btn-primary:focus-visible, button.btn-primary:focus-visible, .button-primary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.btn-primary:disabled, button.btn-primary:disabled, .button-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-outline-primary {
+  background-color: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-outline-primary:hover:not(:disabled) {
+  background-color: var(--primary-light);
 }
 
 /* App Container */
@@ -116,11 +182,12 @@ button, input, select {
 }
 
 .status-indicator {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background-color: #000000;
+  background-color: var(--color-primary);
   display: inline-block;
+  box-shadow: 0 0 0 2px var(--primary-glow);
 }
 
 .header-controls {
@@ -157,7 +224,8 @@ button, input, select {
 }
 
 .control-select:focus, .control-input:focus {
-  border-color: var(--border-dark);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 /* Nav Tabs */
@@ -190,8 +258,8 @@ button, input, select {
 }
 
 .nav-tab.active {
-  color: var(--text-primary);
-  border-bottom: 2px solid var(--accent-black);
+  color: var(--color-primary);
+  border-bottom: 2px solid var(--color-primary);
 }
 
 /* Main Content Area */
@@ -221,7 +289,7 @@ button, input, select {
 }
 
 .kpi-card:hover {
-  border-color: var(--border-dark);
+  border-color: var(--color-primary);
 }
 
 .kpi-header {
@@ -359,7 +427,8 @@ button, input, select {
 }
 
 .day-btn:hover:not(:disabled) {
-  border-color: var(--border-dark);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
   background-color: var(--bg-subtle);
 }
 
@@ -390,7 +459,7 @@ button, input, select {
 }
 
 .toggle-btn.active {
-  background-color: #000000;
+  background-color: var(--color-primary);
   color: #ffffff;
 }
 
@@ -453,9 +522,9 @@ button, input, select {
   border-radius: var(--radius-sm);
   font-size: 10px;
   font-weight: 700;
-  background-color: var(--bg-subtle);
-  border: 1px solid var(--border-light);
-  color: var(--text-primary);
+  background-color: var(--primary-light);
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
 }
 
 .badge-missing {
@@ -501,7 +570,7 @@ button, input, select {
 }
 
 .retry-btn {
-  background-color: #000000;
+  background-color: var(--color-primary);
   color: #ffffff;
   border: none;
   padding: 6px 14px;
@@ -509,10 +578,11 @@ button, input, select {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 
 .retry-btn:hover {
-  background-color: #333333;
+  background-color: var(--primary-hover);
 }
 
 /* Responsive adjustments */
@@ -531,3 +601,72 @@ button, input, select {
     align-items: flex-start;
   }
 }
+
+/* Modern Cutoff Selector Pill */
+.modern-cutoff-pill {
+  display: inline-flex;
+  align-items: center;
+  background-color: #ffffff;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  padding: 3px 6px 3px 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modern-cutoff-pill:hover {
+  border-color: #9ca3af;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.modern-cutoff-pill:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(20, 137, 55, 0.15);
+}
+
+.modern-cutoff-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: transparent;
+  border: none;
+  outline: none;
+  padding: 6px 28px 6px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.modern-cutoff-select:focus {
+  outline: none;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slim modern scrollbars for dropdowns and panels */
+[role="listbox"]::-webkit-scrollbar {
+  width: 5px;
+}
+[role="listbox"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+[role="listbox"]::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 4px;
+}
+[role="listbox"]::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+

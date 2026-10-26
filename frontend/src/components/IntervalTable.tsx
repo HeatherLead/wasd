@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { ArrowUpDown, Download, Search } from 'lucide-react';
 import type { IntervalDetailItem } from '../api/client';
+import { formatDate } from '../utils/date';
 
 interface IntervalTableProps {
   intervals: IntervalDetailItem[];
@@ -107,7 +108,7 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
       <div className="section-card-header">
         <div>
           <h2 className="section-card-title">
-            Interval Settlement Audit Table ({deliveryDate})
+            Interval Settlement Audit Table ({formatDate(deliveryDate)})
           </h2>
           <p className="section-card-subtitle">
             Showing {resolution === 'half_hourly' ? '48 half-hour settlement periods' : '24 hourly blocks'}. All times in UTC (GMT).
@@ -195,7 +196,7 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
               filteredAndSorted.map((row) => {
                 const timeStr = row.start_time.substring(11, 16);
                 const pubTimeStr = row.forecast_publish_time
-                  ? `${row.forecast_publish_time.substring(0, 10)} ${row.forecast_publish_time.substring(11, 16)}`
+                  ? `${formatDate(row.forecast_publish_time.substring(0, 10))} ${row.forecast_publish_time.substring(11, 16)}`
                   : '—';
 
                 const errorVal = row.error_mw;

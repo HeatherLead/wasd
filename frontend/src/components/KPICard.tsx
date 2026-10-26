@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { Info } from 'lucide-react';
+import { PRIMARY_COLOR } from '../theme';
 
 interface KPICardProps {
   title: string;
@@ -37,7 +38,7 @@ export const KPICard: React.FC<KPICardProps> = ({
       className="kpi-card"
       style={{
         borderWidth: highlight ? '2px' : '1px',
-        borderColor: highlight ? '#000000' : 'var(--border-light)',
+        borderColor: highlight ? PRIMARY_COLOR : 'var(--border-light)',
       }}
     >
       <div className="kpi-header">

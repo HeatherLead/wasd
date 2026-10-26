@@ -22,6 +22,8 @@ import {
   ReferenceLine,
 } from 'recharts';
 import type { AccuracyResponse } from '../api/client';
+import { PRIMARY_COLOR } from '../theme';
+import { formatDate } from '../utils/date';
 
 interface AccuracyViewsProps {
   accuracyData: AccuracyResponse;
@@ -38,6 +40,9 @@ export const AccuracyViews: React.FC<AccuracyViewsProps> = ({
 
   const CustomChartTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      const headerTitle = payload[0]?.payload?.fullDate
+        ? formatDate(payload[0].payload.fullDate)
+        : label;
       return (
         <div
           style={{
@@ -49,7 +54,7 @@ export const AccuracyViews: React.FC<AccuracyViewsProps> = ({
           }}
         >
           <div style={{ fontWeight: 700, marginBottom: '4px', borderBottom: '1px solid #dee2e6' }}>
-            {label}
+            {headerTitle}
           </div>
           {payload.map((entry: any, idx: number) => (
             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', color: entry.color || '#000000' }}>
@@ -136,7 +141,7 @@ export const AccuracyViews: React.FC<AccuracyViewsProps> = ({
                 <Tooltip content={<CustomChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                 <ReferenceLine y={0} stroke="#000000" />
-                <Bar dataKey="MAE" name="Mean Absolute Error (MAE)" fill="#000000" />
+                <Bar dataKey="MAE" name="Mean Absolute Error (MAE)" fill={PRIMARY_COLOR} />
                 <Bar dataKey="Bias" name="Mean Bias Error (MBE)" fill="#6c757d" />
               </BarChart>
             </ResponsiveContainer>
@@ -167,7 +172,7 @@ export const AccuracyViews: React.FC<AccuracyViewsProps> = ({
                 <Tooltip content={<CustomChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                 <ReferenceLine y={0} stroke="#000000" />
-                <Line type="monotone" dataKey="MAE" name="MAE (MW)" stroke="#000000" strokeWidth={2.2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="MAE" name="MAE (MW)" stroke={PRIMARY_COLOR} strokeWidth={2.4} dot={{ r: 3, fill: PRIMARY_COLOR }} />
                 <Line type="monotone" dataKey="Bias" name="Bias (MW)" stroke="#6c757d" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>

@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import type { BoxPlotStats } from '../api/client';
+import { PRIMARY_COLOR } from '../theme';
 
 interface BoxPlotChartProps {
   stats: BoxPlotStats;
@@ -70,7 +71,7 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
           </p>
         </div>
         {hoveredValue && (
-          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#000000', background: '#f5f5f5', padding: '0.2rem 0.6rem', border: '1px solid #ccc' }}>
+          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: PRIMARY_COLOR, background: '#f5f5f5', padding: '0.2rem 0.6rem', border: `1px solid ${PRIMARY_COLOR}`, borderRadius: '4px' }}>
             {hoveredValue}
           </div>
         )}
@@ -167,8 +168,8 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             y1={plotCenterY - boxHeight / 2}
             x2={medX}
             y2={plotCenterY + boxHeight / 2}
-            stroke="#000000"
-            strokeWidth="3.5"
+            stroke={PRIMARY_COLOR}
+            strokeWidth="4"
             onMouseEnter={() => setHoveredValue(`Median Error: ${stats.median_mw?.toLocaleString()} MW`)}
             onMouseLeave={() => setHoveredValue(null)}
           />
@@ -204,7 +205,7 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             Q1: {stats.q1_mw?.toLocaleString()}
           </text>
 
-          <text x={medX} y={plotCenterY + 34} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#000000">
+          <text x={medX} y={plotCenterY + 34} textAnchor="middle" fontSize="11" fontWeight="bold" fill={PRIMARY_COLOR}>
             Median: {stats.median_mw?.toLocaleString()} MW
           </text>
 

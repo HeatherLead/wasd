@@ -1,6 +1,6 @@
 /**
  * frontend/src/components/Page1Accuracy.tsx
- * Page 1: Accuracy (The Evidence)
+ * Page 1: Accuracy 
  * Core Question: "How good were the forecasts that were available at decision time?"
  *
  * Rules:
@@ -25,8 +25,11 @@ import {
 } from 'recharts';
 import { KPICard } from './KPICard';
 import { BoxPlotChart } from './BoxPlotChart';
+import { CustomDropdown } from './CustomDropdown';
 import type { SummaryResponse, AccuracyResponse, DaySummaryItem, DayDetailResponse } from '../api/client';
 import { ArrowLeft, Calendar } from 'lucide-react';
+import { PRIMARY_COLOR } from '../theme';
+import { formatDate } from '../utils/date';
 
 interface Page1AccuracyProps {
   summary: SummaryResponse | null;
@@ -88,25 +91,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
 
   return (
     <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      {/* 1. Data-Driven Headline Banner */}
-      <section
-        style={{
-          borderLeft: '4px solid #000000',
-          padding: '1rem 1.25rem',
-          backgroundColor: '#fafafa',
-          borderTop: '1px solid #e0e0e0',
-          borderRight: '1px solid #e0e0e0',
-          borderBottom: '1px solid #e0e0e0',
-        }}
-      >
-        <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#666666', fontWeight: 600, marginBottom: '0.25rem' }}>
-          Historical Accuracy Finding (Decision Cutoff: {summary?.cutoff_time ?? '09:00'} UTC)
-        </div>
-        <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#000000', lineHeight: 1.4 }}>
-          {headline}
-        </div>
-      </section>
-
       {/* 2. Exactly 4 KPI Cards */}
       <section>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
@@ -149,11 +133,8 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#000000' }}>
-              {drilldownDate ? `Half-Hourly Outturn — ${drilldownDate} (48 Settlement Periods)` : 'January 2026 — Daily Average Forecast vs Actual Outturn'}
+              {drilldownDate ? `Half-Hourly Outturn — ${formatDate(drilldownDate)} (48 Settlement Periods)` : 'Daily Average Forecast vs Actual Outturn'}
             </h3>
-            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#666666' }}>
-              {drilldownDate ? 'Drilldown view of hourly decision forecasts against 30-min metered wind actuals.' : 'Click any date bar or use the selector to inspect half-hourly intervals.'}
-            </p>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -171,39 +152,28 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                   backgroundColor: '#ffffff',
                   color: '#000000',
                   border: '1px solid #000000',
+                  borderRadius: '6px',
                   cursor: 'pointer',
                 }}
               >
                 <ArrowLeft size={14} /> Back to Full Month
               </button>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Calendar size={14} color="#666666" />
-                <select
-                  value={drilldownDate ?? ''}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setDrilldownDate(e.target.value);
-                      onSelectDate(e.target.value);
-                    }
-                  }}
-                  style={{
-                    padding: '0.35rem 0.6rem',
-                    fontSize: '0.8rem',
-                    border: '1px solid #cccccc',
-                    backgroundColor: '#ffffff',
-                    color: '#000000',
-                    fontWeight: 500,
-                  }}
-                >
-                  <option value="">Drill into Day...</option>
-                  {days.map((d) => (
-                    <option key={d.delivery_date} value={d.delivery_date}>
-                      {d.delivery_date} (MAE: {Math.round(d.mae_mw ?? 0)} MW)
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CustomDropdown
+                options={days.map((d) => ({
+                  value: d.delivery_date,
+                  label: formatDate(d.delivery_date),
+                }))}
+                value={drilldownDate ?? ''}
+                placeholder="Drill into Day..."
+                icon={<Calendar size={14} color={PRIMARY_COLOR} />}
+                onChange={(val) => {
+                  if (val) {
+                    setDrilldownDate(val);
+                    onSelectDate(val);
+                  }
+                }}
+              />
             )}
           </div>
         </div>
@@ -212,7 +182,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         <div style={{ height: '340px', width: '100%' }}>
           {drilldownDate && isLoadingDayDetail ? (
             <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#666666', fontSize: '0.9rem' }}>
-              Loading interval data for {drilldownDate}...
+              Loading interval data for {formatDate(drilldownDate)}...
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -263,9 +233,9 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                     return (
                       <div style={{ backgroundColor: '#ffffff', border: '1px solid #000000', padding: '0.6rem 0.8rem', fontSize: '0.8rem', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }}>
                         <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>
-                          {drilldownDate ? `${drilldownDate} @ ${label} UTC` : `2026-01-${label}`}
+                          {drilldownDate ? `${formatDate(drilldownDate)} @ ${label} UTC` : formatDate(`2026-01-${label}`)}
                         </div>
-                        <div style={{ color: '#000000' }}>
+                        <div style={{ color: PRIMARY_COLOR, fontWeight: 600 }}>
                           Forecast Wind: <strong>{fVal !== null && fVal !== undefined ? `${fVal.toLocaleString(undefined, { maximumFractionDigits: 1 })} MW` : '—'}</strong>
                         </div>
                         <div style={{ color: '#555555' }}>
@@ -273,7 +243,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                         </div>
                         {err !== null && (
                           <div style={{ marginTop: '0.3rem', paddingTop: '0.3rem', borderTop: '1px solid #e0e0e0', fontWeight: 600, color: err > 0 ? '#000000' : '#444444' }}>
-                            Error: {err > 0 ? `+${err.toLocaleString(undefined, { maximumFractionDigits: 1 })} MW (Over)` : `${err.toLocaleString(undefined, { maximumFractionDigits: 1 })} MW (Under)`}
+                            Disparity : {err > 0 ? `+${err.toLocaleString(undefined, { maximumFractionDigits: 1 })} MW` : `${err.toLocaleString(undefined, { maximumFractionDigits: 1 })} MW `}
                           </div>
                         )}
                       </div>
@@ -289,10 +259,10 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                   type="monotone"
                   dataKey="forecastMw"
                   name="Forecast Wind (09:00 Cutoff)"
-                  stroke="#000000"
+                  stroke={PRIMARY_COLOR}
                   strokeWidth={2.5}
                   dot={false}
-                  activeDot={{ r: 5, fill: '#000000' }}
+                  activeDot={{ r: 5, fill: PRIMARY_COLOR }}
                 />
                 <Line
                   type="monotone"
@@ -320,11 +290,11 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         </p>
 
         {/* Segmented bar */}
-        <div style={{ width: '100%', height: '36px', display: 'flex', border: '1px solid #000000', overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '36px', display: 'flex', border: '1px solid #cccccc', borderRadius: '4px', overflow: 'hidden' }}>
           <div
             style={{
               width: `${overPctDisplay}%`,
-              backgroundColor: '#000000',
+              backgroundColor: PRIMARY_COLOR,
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',

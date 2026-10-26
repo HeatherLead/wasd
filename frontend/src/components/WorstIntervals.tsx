@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, ArrowRight } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { WorstIntervalsResponse } from '../api/client';
+import { formatDate } from '../utils/date';
 
 interface WorstIntervalsProps {
   cutoffTime: string;
@@ -85,7 +86,7 @@ export const WorstIntervals: React.FC<WorstIntervalsProps> = ({
               {data.worst_overforecasts.map((row) => (
                 <tr key={row.start_time}>
                   <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                    {row.delivery_date} {row.start_time.substring(11, 16)}
+                    {formatDate(row.delivery_date)} {row.start_time.substring(11, 16)}
                   </td>
                   <td className="numeric-cell">{Math.round(row.forecast_generation_mw).toLocaleString()} MW</td>
                   <td className="numeric-cell">{Math.round(row.actual_generation_mw).toLocaleString()} MW</td>
@@ -98,7 +99,7 @@ export const WorstIntervals: React.FC<WorstIntervalsProps> = ({
                       className="day-btn"
                       style={{ padding: '2px 8px', fontSize: '10px' }}
                       onClick={() => onSelectDay(row.delivery_date)}
-                      title={`Inspect ${row.delivery_date}`}
+                      title={`Inspect ${formatDate(row.delivery_date)}`}
                     >
                       Inspect <ArrowRight size={10} />
                     </button>
@@ -135,7 +136,7 @@ export const WorstIntervals: React.FC<WorstIntervalsProps> = ({
               {data.worst_underforecasts.map((row) => (
                 <tr key={row.start_time}>
                   <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                    {row.delivery_date} {row.start_time.substring(11, 16)}
+                    {formatDate(row.delivery_date)} {row.start_time.substring(11, 16)}
                   </td>
                   <td className="numeric-cell">{Math.round(row.forecast_generation_mw).toLocaleString()} MW</td>
                   <td className="numeric-cell">{Math.round(row.actual_generation_mw).toLocaleString()} MW</td>
@@ -148,7 +149,7 @@ export const WorstIntervals: React.FC<WorstIntervalsProps> = ({
                       className="day-btn"
                       style={{ padding: '2px 8px', fontSize: '10px' }}
                       onClick={() => onSelectDay(row.delivery_date)}
-                      title={`Inspect ${row.delivery_date}`}
+                      title={`Inspect ${formatDate(row.delivery_date)}`}
                     >
                       Inspect <ArrowRight size={10} />
                     </button>

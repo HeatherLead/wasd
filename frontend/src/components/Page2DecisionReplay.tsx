@@ -27,6 +27,9 @@ import {
 } from 'recharts';
 import type { DayDetailResponse, DaySummaryItem, SummaryResponse } from '../api/client';
 import { Eye, EyeOff, Calendar } from 'lucide-react';
+import { PRIMARY_COLOR } from '../theme';
+import { formatDate } from '../utils/date';
+import { CustomDropdown } from './CustomDropdown';
 
 interface Page2DecisionReplayProps {
   selectedDate: string;
@@ -65,7 +68,7 @@ export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
   const publishTimes = (dayDetail?.intervals ?? [])
     .map((i) => i.forecast_publish_time)
     .filter((t): t is string => Boolean(t));
-  
+
   let publishTimeBanner = 'published 08:30 UTC';
   if (publishTimes.length > 0) {
     const sortedPubs = [...new Set(publishTimes)].sort();
@@ -130,7 +133,7 @@ export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 600, color: '#000000' }}>
-            Decision Replay — {selectedDate}
+            Decision Replay — {formatDate(selectedDate)}
           </h2>
           <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: '#666666' }}>
             Replay the exact decision moment before wholesale auction gate closure.
@@ -138,59 +141,17 @@ export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
         </div>
 
         {/* Date Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#f5f5f5', padding: '0.4rem 0.8rem', border: '1px solid #cccccc' }}>
-          <Calendar size={16} color="#000000" />
-          <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Delivery Day D:</span>
-          <select
-            value={selectedDate}
-            onChange={(e) => onSelectDate(e.target.value)}
-            style={{
-              padding: '0.25rem 0.5rem',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              backgroundColor: '#ffffff',
-              color: '#000000',
-              border: '1px solid #000000',
-            }}
-          >
-            {days.map((d) => (
-              <option key={d.delivery_date} value={d.delivery_date}>
-                {d.delivery_date}
-              </option>
-            ))}
-          </select>
-        </div>
+        <CustomDropdown
+          labelPrefix="Delivery Day D"
+          icon={<Calendar size={14} color={PRIMARY_COLOR} />}
+          options={days.map((d) => ({
+            value: d.delivery_date,
+            label: formatDate(d.delivery_date),
+          }))}
+          value={selectedDate}
+          onChange={(val) => onSelectDate(val)}
+        />
       </div>
-
-      {/* 2. Publication-Time Transparency Banner */}
-      <section
-        style={{
-          borderLeft: '4px solid #000000',
-          padding: '0.9rem 1.25rem',
-          backgroundColor: '#fafafa',
-          borderTop: '1px solid #e0e0e0',
-          borderRight: '1px solid #e0e0e0',
-          borderBottom: '1px solid #e0e0e0',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '0.75rem',
-        }}
-      >
-        <div>
-          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#666666', fontWeight: 600 }}>
-            Decision Cutoff Transparency
-          </div>
-          <div style={{ fontSize: '1rem', fontWeight: 600, color: '#000000' }}>
-            Cutoff: {cutoffDateStr} {cutoffTime} UTC (D-1). Latest forecast used: {publishTimeBanner}.
-          </div>
-        </div>
-
-        <div style={{ fontSize: '0.8rem', color: '#555555', background: '#ffffff', padding: '0.3rem 0.6rem', border: '1px solid #dddddd' }}>
-          Context from history: Forecasts were too high <strong>{overRatePct.toFixed(1)}%</strong> of the time.
-        </div>
-      </section>
 
       {/* 3. Demand Input Field & Reveal Toggle Controls */}
       <section
@@ -236,9 +197,10 @@ export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
               onClick={handleDemandBlurOrSubmit}
               style={{
                 padding: '0.45rem 0.85rem',
-                backgroundColor: '#000000',
+                backgroundColor: PRIMARY_COLOR,
                 color: '#ffffff',
-                border: 'none',
+                border: `1px solid ${PRIMARY_COLOR}`,
+                borderRadius: '4px',
                 fontWeight: 600,
                 fontSize: '0.85rem',
                 cursor: 'pointer',
@@ -286,9 +248,10 @@ export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
               padding: '0.5rem 1rem',
               fontSize: '0.85rem',
               fontWeight: 600,
-              backgroundColor: revealActuals ? '#000000' : '#ffffff',
+              backgroundColor: revealActuals ? PRIMARY_COLOR : '#ffffff',
               color: revealActuals ? '#ffffff' : '#000000',
-              border: '1px solid #000000',
+              border: `1px solid ${revealActuals ? PRIMARY_COLOR : '#000000'}`,
+              borderRadius: '4px',
               cursor: 'pointer',
               transition: 'background-color 0.15s ease',
             }}
@@ -307,7 +270,7 @@ export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#000000' }}>
-              Day D Half-Hourly Wind & Procurement Schedule ({selectedDate})
+              Day D Half-Hourly Wind & Procurement Schedule ({formatDate(selectedDate)})
             </h3>
             <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#666666' }}>
               {demandMw !== null
@@ -367,8 +330,8 @@ export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
                     const resVal = payload.find((p) => p.dataKey === 'residualNeedMw')?.value as number;
                     return (
                       <div style={{ backgroundColor: '#ffffff', border: '1px solid #000000', padding: '0.6rem 0.8rem', fontSize: '0.8rem', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }}>
-                        <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{selectedDate} @ {label} UTC</div>
-                        <div>Forecast Wind: <strong>{fVal !== null && fVal !== undefined ? `${fVal.toLocaleString()} MW` : '—'}</strong></div>
+                        <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{formatDate(selectedDate)} @ {label} UTC</div>
+                        <div style={{ color: PRIMARY_COLOR, fontWeight: 600 }}>Forecast Wind: <strong>{fVal !== null && fVal !== undefined ? `${fVal.toLocaleString()} MW` : '—'}</strong></div>
                         {demandMw !== null && (
                           <div>Demand Target: <strong>{demandMw.toLocaleString()} MW</strong></div>
                         )}
@@ -409,9 +372,10 @@ export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
                   type="monotone"
                   dataKey="forecastMw"
                   name="Forecast Wind (Locked at 09:00 Cutoff)"
-                  stroke="#000000"
+                  stroke={PRIMARY_COLOR}
                   strokeWidth={2.5}
                   dot={false}
+                  activeDot={{ r: 5, fill: PRIMARY_COLOR }}
                 />
 
                 {/* Residual Need if demand entered */}
@@ -453,10 +417,11 @@ export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
               type="button"
               onClick={onNavigateToPage3}
               style={{
-                backgroundColor: '#000000',
+                backgroundColor: PRIMARY_COLOR,
                 color: '#ffffff',
-                border: 'none',
-                padding: '0.45rem 0.9rem',
+                border: `1px solid ${PRIMARY_COLOR}`,
+                borderRadius: '4px',
+                padding: '0.5rem 1rem',
                 fontSize: '0.85rem',
                 fontWeight: 600,
                 cursor: 'pointer',

@@ -18,6 +18,8 @@ import {
   ReferenceLine,
 } from 'recharts';
 import type { IntervalDetailItem } from '../api/client';
+import { PRIMARY_COLOR } from '../theme';
+import { formatDate } from '../utils/date';
 
 interface ForecastChartProps {
   intervals: IntervalDetailItem[];
@@ -33,7 +35,7 @@ export const ForecastChart: React.FC<ForecastChartProps> = ({
   if (!intervals || intervals.length === 0) {
     return (
       <div style={{ padding: '40px', textAlign: 'center', color: '#6c757d' }}>
-        No interval data available for {deliveryDate}.
+        No interval data available for {formatDate(deliveryDate)}.
       </div>
     );
   }
@@ -70,10 +72,10 @@ export const ForecastChart: React.FC<ForecastChartProps> = ({
           }}
         >
           <div style={{ fontWeight: 700, marginBottom: '6px', borderBottom: '1px solid #dee2e6', paddingBottom: '4px' }}>
-            {deliveryDate} {label} UTC (Period {data.period ?? '—'})
+            {formatDate(deliveryDate)} {label} UTC (Period {data.period ?? '—'})
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', marginBottom: '3px' }}>
-            <span style={{ color: '#000000', fontWeight: 600 }}>Forecast (D-1):</span>
+            <span style={{ color: PRIMARY_COLOR, fontWeight: 600 }}>Forecast (D-1):</span>
             <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
               {data.forecast !== null ? `${Math.round(data.forecast).toLocaleString()} MW` : 'MISSING'}
             </span>
@@ -143,10 +145,10 @@ export const ForecastChart: React.FC<ForecastChartProps> = ({
                 type="monotone"
                 dataKey="forecast"
                 name="Decision-Time Forecast (D-1)"
-                stroke="#000000"
-                strokeWidth={2.2}
-                dot={{ r: 2, fill: '#000000' }}
-                activeDot={{ r: 5, fill: '#000000' }}
+                stroke={PRIMARY_COLOR}
+                strokeWidth={2.4}
+                dot={{ r: 2, fill: PRIMARY_COLOR }}
+                activeDot={{ r: 5, fill: PRIMARY_COLOR }}
               />
               <Line
                 type="monotone"
@@ -187,7 +189,7 @@ export const ForecastChart: React.FC<ForecastChartProps> = ({
               />
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine y={0} stroke="#000000" strokeWidth={1} />
-              <Bar dataKey="error" name="Error (MW)" fill="#212529" maxBarSize={16} />
+              <Bar dataKey="error" name="Error (MW)" fill={PRIMARY_COLOR} maxBarSize={16} />
             </BarChart>
           </ResponsiveContainer>
         </div>

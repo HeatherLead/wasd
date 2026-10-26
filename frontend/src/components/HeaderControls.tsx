@@ -4,7 +4,8 @@
  */
 
 import React from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatDate } from '../utils/date';
 
 interface HeaderControlsProps {
   selectedDate: string;
@@ -13,8 +14,8 @@ interface HeaderControlsProps {
   onSelectCutoff: (cutoff: string) => void;
   resolution: 'half_hourly' | 'hourly';
   onSelectResolution: (res: 'half_hourly' | 'hourly') => void;
-  isRefreshing: boolean;
-  onRefresh: () => void;
+  isRefreshing?: boolean;
+  onRefresh?: () => void;
 }
 
 export const HeaderControls: React.FC<HeaderControlsProps> = ({
@@ -24,8 +25,6 @@ export const HeaderControls: React.FC<HeaderControlsProps> = ({
   onSelectCutoff,
   resolution,
   onSelectResolution,
-  isRefreshing,
-  onRefresh,
 }) => {
   // January 2026 delivery days (Jan 1 to Jan 31)
   const allDays = Array.from({ length: 31 }, (_, i) => {
@@ -84,17 +83,6 @@ export const HeaderControls: React.FC<HeaderControlsProps> = ({
               )}
             </select>
           </div>
-
-          <button
-            type="button"
-            className="day-btn"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            title="Reload dataset"
-          >
-            <RefreshCw size={13} className={isRefreshing ? 'loading-skeleton' : ''} />
-            {isRefreshing ? 'Recomputing...' : 'Refresh'}
-          </button>
         </div>
       </div>
 
@@ -120,7 +108,7 @@ export const HeaderControls: React.FC<HeaderControlsProps> = ({
           >
             {allDays.map((d) => (
               <option key={d} value={d}>
-                {d} (Day {parseInt(d.substring(8), 10)})
+                {formatDate(d)}
               </option>
             ))}
           </select>
