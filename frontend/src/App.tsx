@@ -23,7 +23,6 @@ import { Page1Accuracy } from './components/Page1Accuracy';
 import { Page2DecisionReplay } from './components/Page2DecisionReplay';
 import { Page3BuyRange } from './components/Page3BuyRange';
 import { DetailsSection } from './components/DetailsSection';
-import { CustomDropdown } from './components/CustomDropdown';
 import { PRIMARY_COLOR } from './theme';
 import {
   BarChart2,
@@ -39,9 +38,9 @@ export const App: React.FC = () => {
   const [activePage, setActivePage] = useState<PageId>('accuracy');
 
   // Shared Global States
-  const [cutoffTime, setCutoffTime] = useState<string>('09:00');
+  const cutoffTime = '09:00';
   const [selectedDate, setSelectedDate] = useState<string>('2026-01-15');
-  const [demandMw, setDemandMw] = useState<number | null>(null);
+  const [demandMw, setDemandMw] = useState<number | null>(12000);
 
   // API Data States
   const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null);
@@ -97,55 +96,20 @@ export const App: React.FC = () => {
     fetchDayDetail();
   }, [fetchDayDetail]);
 
-  const cutoffPresets = [
-    { label: '07:30 UTC', value: '07:30' },
-    { label: '09:00 UTC (EPEX / N2EX Default)', value: '09:00' },
-    { label: '09:30 UTC (N2EX Late)', value: '09:30' },
-    { label: '12:00 UTC (EU SDAC)', value: '12:00' },
-    { label: '15:00 UTC (Afternoon)', value: '15:00' },
-  ];
-
   return (
     <div className="app-container" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', color: '#000000' }}>
-      {/* Global Header */}
+      {/* 3-Page Decision Tabs */}
       <header
         style={{
           borderBottom: '1px solid #e0e0e0',
           backgroundColor: '#ffffff',
-          padding: '1rem 2rem',
+          padding: '0.85rem 2rem',
           position: 'sticky',
           top: 0,
           zIndex: 100,
         }}
       >
-        <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          {/* Brand & Context */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <div style={{ width: '9px', height: '9px', backgroundColor: PRIMARY_COLOR, borderRadius: '50%', boxShadow: '0 0 0 2px rgba(20, 137, 55, 0.25)' }} />
-              <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#000000' }}>
-                Wind Forecast Analysis
-              </h1>
-            </div>
-          </div>
-
-          {/* Global Cutoff Selector */}
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <CustomDropdown
-              labelPrefix="D-1 Cutoff"
-              icon={<Clock size={14} color={PRIMARY_COLOR} />}
-              options={cutoffPresets.map((p) => ({
-                value: p.value,
-                label: p.label,
-              }))}
-              value={cutoffTime}
-              onChange={(val) => setCutoffTime(val)}
-            />
-          </div>
-        </div>
-
-        {/* 3-Page Decision Tabs */}
-        <div style={{ maxWidth: '1440px', margin: '1rem auto 0 auto', borderTop: '1px solid #eeeeee', paddingTop: '0.75rem' }}>
+        <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
           <nav style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {/* Page 1 Button */}
             <button
@@ -274,7 +238,7 @@ export const App: React.FC = () => {
                 Simulation Day
               </div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: '#000000' }}>
-                Select a day in January 2026 to simulate
+                Select a day
               </div>
             </div>
           </div>
@@ -350,20 +314,6 @@ export const App: React.FC = () => {
                 demandMw={demandMw}
                 onDemandChange={setDemandMw}
                 onNavigateToPage2={() => setActivePage('replay')}
-              />
-            )}
-
-            {/* Secondary Details Section (Only for Page 3) */}
-            {activePage === 'buy-range' && (
-              <DetailsSection
-                dayDetail={dayDetail}
-                selectedDate={selectedDate}
-                cutoffTime={cutoffTime}
-                summary={summaryData}
-                onSelectDay={(d) => {
-                  setSelectedDate(d);
-                  setActivePage('replay');
-                }}
               />
             )}
           </>

@@ -184,8 +184,11 @@ class BuyRangeIntervalItem(BaseModel):
     start_time: str
     settlement_period: Optional[int] = None
     forecast_mw: Optional[float] = None
-    forecast_generation_mw: Optional[float] = None
+    actual_low_mw: Optional[float] = None
     base_need_mw: Optional[float] = None
+    recommended_need_mw: Optional[float] = None
+    buffer_mw: Optional[float] = None
+    forecast_generation_mw: Optional[float] = None
     low_need_mw: Optional[float] = None
     central_need_mw: Optional[float] = None
     high_need_mw: Optional[float] = None
@@ -195,6 +198,8 @@ class BuyRangeTotals(BaseModel):
     forecast_total_mwh: Optional[float] = None
     demand_total_mwh: Optional[float] = None
     base_need_total_mwh: Optional[float] = None
+    recommended_need_total_mwh: Optional[float] = None
+    buffer_total_mwh: Optional[float] = None
     low_need_total_mwh: Optional[float] = None
     central_need_total_mwh: Optional[float] = None
     high_need_total_mwh: Optional[float] = None
@@ -209,18 +214,30 @@ class BuyRangeQuantiles(BaseModel):
     p90_error_mw: float
 
 
+class BuyRangeBacktest(BaseModel):
+    underprocurement_share: float
+    underprocurement_pct: float
+    days_evaluated: int
+    intervals_evaluated: int
+    intervals_short: int
+    coverage: float
+    note: str = "Share of January intervals where recommended buy fell short of actual need, using prior days only."
+
+
 class BuyRangeResponse(BaseModel):
     delivery_date: str
     cutoff_time: str
     demand_mw: Optional[float] = None
+    coverage: float = 0.90
     basis: str  # "prior_days" or "in_sample"
     prior_days_count: int
     note: str
     units: UnitsBlock = Field(default_factory=UnitsBlock)
-    quantiles: BuyRangeQuantiles
+    quantiles: Optional[BuyRangeQuantiles] = None
     shortfall_energy_mwh: Optional[float] = None
     totals: Optional[BuyRangeTotals] = None
     intervals: List[BuyRangeIntervalItem]
+    backtest: Optional[BuyRangeBacktest] = None
 
 
 class HealthResponse(BaseModel):

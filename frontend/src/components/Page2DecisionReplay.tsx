@@ -667,7 +667,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                 }}
               >
                 {tableOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                <span>Interval Details (48 Settlement Periods)</span>
+                <span>Interval Details </span>
               </button>
 
               <button

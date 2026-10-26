@@ -239,4 +239,45 @@ A walk-forward validation across all 30 evaluatable delivery days in January 202
 - **Overall Realised Coverage**: **70.4%** (1,014 of 1,440 intervals contained within the band)
 - **Calibration Reading**: Realised coverage (70.4%) is slightly below the 80% target. This shortfall is honest and empirically grounded: early January days (Jan 2–5) suffer from cold-start sample warm-up (31–37% coverage with 1–4 prior days), and sudden storm transitions (e.g. Jan 28) cause sharp deviations. As history accumulates past Jan 10, realised coverage rises to 85–100% on calm and stable wind days.
 
+---
+
+## Decision 17: Wholesale Buy Range and Downside Risk Engine (Page 3)
+
+### 1. Purpose & Core Trade Decision
+- **Question**: "What range of wholesale energy do we need to buy to cover customer demand given plausible wind dropouts?"
+- **Integration**: Directly reuses `uncertainty.py` and the Page 2 empirical error quantile engine. Zero machine learning, zero external model assumptions.
+
+### 2. Core Definitions & Arithmetic
+- **Forecast Error**:
+  $$\text{error\_mw} = \text{forecast} - \text{actual}$$
+  (Positive = over-forecast, wind fell short of forecast).
+- **Plausible Actual Wind Range**:
+  Derived strictly from prior days history (no look-ahead):
+  $$\text{actual\_low} = \max(0, \text{forecast} - q_{\text{hi}}(\text{error}))$$
+  at the selected coverage level (80%, 90%, 95%).
+- **Base Need (MW)**:
+  $$\text{base\_need\_mw} = \max(\text{demand} - \text{forecast}, 0)$$
+  The deterministic procurement need assuming zero forecast error.
+- **Recommended Need (MW)**:
+  $$\text{recommended\_need\_mw} = \max(\text{demand} - \text{actual\_low}, 0)$$
+  The risk-protected procurement volume sized to cover plausible wind shortfall down to the empirical lower bound.
+- **Extra Buffer (MW)**:
+  $$\text{buffer\_mw} = \text{recommended\_need\_mw} - \text{base\_need\_mw}$$
+  The additional insurance capacity to procure due to wind generation uncertainty.
+- **Energy Conversion**:
+  $$\text{Energy per interval} = \text{MW} \times 0.5\text{ hours} \quad (\text{MWh})$$
+  Missing forecasts stay `null`, never zero.
+- **Clamping**:
+  All procurement quantities ($\text{base\_need\_mw}$, $\text{recommended\_need\_mw}$, $\text{buffer\_mw}$) are strictly clamped at $\ge 0\text{ MW}$ (a utility cannot purchase negative energy from the day-ahead auction).
+
+### 3. Walk-Forward Underprocurement Backtest
+- Evaluates the historical reliability of the recommended buy volume across January 2026 using rolling prior days only:
+  $$\text{Underprocurement} \iff \text{recommended\_need} < \text{actual\_need}$$
+  where $\text{actual\_need} = \max(\text{demand} - \text{actual\_wind}, 0)$.
+- **Empirical January Results (30 Evaluated Days, 1,440 Half-Hours)**:
+  - At **80% Coverage**: Under-procurement rate = **10.21%** (147 / 1,440 intervals)
+  - At **90% Coverage**: Under-procurement rate = **7.71%** (111 / 1,440 intervals)
+  - At **95% Coverage**: Under-procurement rate = **4.79%** (69 / 1,440 intervals)
+
+
 

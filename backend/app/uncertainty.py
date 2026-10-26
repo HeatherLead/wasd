@@ -650,3 +650,254 @@ def run_walk_forward_backtest(
         "days": days_evaluated,
         "calibration_table": calibration_table,
     }
+
+
+def compute_buy_range_schedule(
+    day_df: pd.DataFrame,
+    error_history: pd.DataFrame,
+    demand_mw: Optional[float] = None,
+    coverage: float = 0.90,
+    min_block_samples: int = DEFAULT_MIN_BLOCK_SAMPLES,
+    blocks: Optional[Sequence[Tuple[float, float, str]]] = None,
+) -> Dict[str, Any]:
+    """
+    Computes wholesale power buy range per half-hour and daily MWh totals
+    according to DECISIONS.md Decision 17.
+
+    Rules:
+    - error_mw = forecast - actual (positive = over-forecast, wind shortfall)
+    - plausible actual wind range comes from Page 2 quantile engine (prior days only, no look-ahead)
+    - actual_low = lower bound of empirical band at chosen risk level (e.g. 80%, 90%, 95%)
+    - base_need_mw = max(demand - forecast, 0)
+    - recommended_need_mw = max(demand - actual_low, 0)
+    - buffer_mw = recommended_need_mw - base_need_mw
+    - Energy per interval = MW * 0.5 h. Missing forecasts stay null, never zero.
+    - Clamping at >= 0 MW strictly enforced.
+    - Empty demand (demand_mw is None) returns null for all need fields.
+    """
+    if demand_mw is not None and demand_mw < 0:
+        raise ValueError(f"demand_mw must be non-negative (>= 0), got {demand_mw}")
+    if not (0.0 < coverage < 1.0):
+        raise ValueError(f"coverage must be between 0.0 and 1.0, got {coverage}")
+
+    intervals = []
+    for _, row in day_df.iterrows():
+        start_time_iso = pd.Timestamp(row["start_time"]).isoformat()
+        sp = int(row["settlement_period"]) if pd.notna(row.get("settlement_period")) else None
+
+        f_raw = row.get("forecast_generation_mw", row.get("forecast_mw"))
+        f_val = None if (f_raw is None or pd.isna(f_raw)) else float(f_raw)
+        h_raw = row.get("horizon_hours")
+        h_val = None if (h_raw is None or pd.isna(h_raw)) else float(h_raw)
+
+        if f_val is None:
+            intervals.append({
+                "start_time": start_time_iso,
+                "settlement_period": sp,
+                "forecast_mw": None,
+                "forecast_generation_mw": None,
+                "actual_low_mw": None,
+                "base_need_mw": None,
+                "recommended_need_mw": None,
+                "buffer_mw": None,
+                "low_need_mw": None,
+                "central_need_mw": None,
+                "high_need_mw": None,
+            })
+            continue
+
+        # Quantile bounds from uncertainty engine
+        unc = compute_interval_uncertainty(
+            forecast_mw=f_val,
+            horizon_hours=h_val,
+            error_history=error_history,
+            coverage=coverage,
+            min_block_samples=min_block_samples,
+            blocks=blocks,
+        )
+        actual_low = unc["actual_low_mw"]
+        actual_high = unc["actual_high_mw"]
+
+        if demand_mw is None:
+            base_need = None
+            rec_need = None
+            buf_mw = None
+            low_need = None
+            central_need = None
+            high_need = None
+        else:
+            base_need = round(max(0.0, float(demand_mw - f_val)), 2)
+            if actual_low is not None:
+                rec_need = round(max(0.0, float(demand_mw - actual_low)), 2)
+                buf_mw = round(max(0.0, float(rec_need - base_need)), 2)
+            else:
+                rec_need = None
+                buf_mw = None
+
+            low_need = round(max(0.0, float(demand_mw - actual_high)), 2) if actual_high is not None else None
+            # Central need using median error
+            q_50 = 0.0
+            if not error_history.empty and "error_mw" in error_history.columns:
+                errs = error_history["error_mw"].dropna().values
+                if len(errs) > 0:
+                    q_50 = float(np.percentile(errs, 50))
+            central_need = round(max(0.0, float(demand_mw - (f_val - q_50))), 2)
+            high_need = rec_need
+
+        intervals.append({
+            "start_time": start_time_iso,
+            "settlement_period": sp,
+            "forecast_mw": round(f_val, 2),
+            "forecast_generation_mw": round(f_val, 2),
+            "actual_low_mw": round(actual_low, 2) if actual_low is not None else None,
+            "base_need_mw": base_need,
+            "recommended_need_mw": rec_need,
+            "buffer_mw": buf_mw,
+            "low_need_mw": low_need,
+            "central_need_mw": central_need,
+            "high_need_mw": high_need,
+        })
+
+    # Daily Totals in MWh (each interval is 0.5 hours)
+    valid_fcs = [it["forecast_mw"] for it in intervals if it["forecast_mw"] is not None]
+    fc_total_mwh = round(sum(v * 0.5 for v in valid_fcs), 1) if valid_fcs else None
+
+    if demand_mw is not None:
+        valid_base = [it["base_need_mw"] for it in intervals if it["base_need_mw"] is not None]
+        base_total_mwh = round(sum(v * 0.5 for v in valid_base), 1) if valid_base else None
+
+        valid_rec = [it["recommended_need_mw"] for it in intervals if it["recommended_need_mw"] is not None]
+        rec_total_mwh = round(sum(v * 0.5 for v in valid_rec), 1) if valid_rec else None
+
+        valid_buf = [it["buffer_mw"] for it in intervals if it["buffer_mw"] is not None]
+        buf_total_mwh = round(sum(v * 0.5 for v in valid_buf), 1) if valid_buf else None
+
+        demand_total_mwh = round(float(demand_mw) * len(intervals) * 0.5, 1)
+
+        valid_low = [it["low_need_mw"] for it in intervals if it["low_need_mw"] is not None]
+        low_total_mwh = round(sum(v * 0.5 for v in valid_low), 1) if valid_low else None
+
+        valid_cen = [it["central_need_mw"] for it in intervals if it["central_need_mw"] is not None]
+        cen_total_mwh = round(sum(v * 0.5 for v in valid_cen), 1) if valid_cen else None
+
+        peak_high = max(valid_rec) if valid_rec else 0.0
+        peak_low = min(valid_low) if valid_low else 0.0
+        peak_range = round(peak_high - peak_low, 1)
+    else:
+        base_total_mwh = None
+        rec_total_mwh = None
+        buf_total_mwh = None
+        demand_total_mwh = None
+        low_total_mwh = None
+        cen_total_mwh = None
+        peak_high = None
+        peak_low = None
+        peak_range = None
+
+    totals = {
+        "forecast_total_mwh": fc_total_mwh,
+        "demand_total_mwh": demand_total_mwh,
+        "base_need_total_mwh": base_total_mwh,
+        "recommended_need_total_mwh": rec_total_mwh,
+        "buffer_total_mwh": buf_total_mwh,
+        "low_need_total_mwh": low_total_mwh,
+        "central_need_total_mwh": cen_total_mwh,
+        "high_need_total_mwh": rec_total_mwh,
+        "peak_high_need_mw": peak_high,
+        "peak_low_need_mw": peak_low,
+        "peak_range_mw": peak_range,
+    }
+
+    return {
+        "intervals": intervals,
+        "totals": totals,
+    }
+
+
+def compute_buy_range_backtest(
+    df_joined: pd.DataFrame,
+    coverage: float = 0.90,
+    demand_mw: Optional[float] = None,
+    min_block_samples: int = DEFAULT_MIN_BLOCK_SAMPLES,
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+) -> Dict[str, Any]:
+    """
+    Computes walk-forward underprocurement validation figure:
+    Share of January intervals where recommended_need would have fallen short
+    of actual need (recommended_need < actual_need), using prior days only.
+    """
+    if df_joined.empty:
+        return {
+            "underprocurement_share": 0.0,
+            "underprocurement_pct": 0.0,
+            "days_evaluated": 0,
+            "intervals_evaluated": 0,
+            "intervals_short": 0,
+            "coverage": coverage,
+            "note": "Share of January intervals where recommended buy fell short of actual need, using prior days only.",
+        }
+
+    df = df_joined.copy()
+    if "delivery_date" not in df.columns:
+        df["delivery_date"] = pd.to_datetime(df["start_time"], utc=True).dt.date
+    else:
+        df["delivery_date"] = pd.to_datetime(df["delivery_date"]).dt.date
+
+    all_dates = sorted(df["delivery_date"].unique())
+    days_evaluated = []
+    total_intervals = 0
+    total_short = 0
+
+    for target_d in all_dates:
+        prior_history = build_error_history(df, delivery_date=target_d, lookback_days=lookback_days)
+        if prior_history.empty:
+            continue
+
+        day_intervals = df[df["delivery_date"] == target_d].sort_values("start_time")
+        day_eval = 0
+
+        for _, row in day_intervals.iterrows():
+            f_val = None if pd.isna(row.get("forecast_generation_mw")) else float(row["forecast_generation_mw"])
+            a_val = None if pd.isna(row.get("actual_generation_mw")) else float(row["actual_generation_mw"])
+            h_val = None if pd.isna(row.get("horizon_hours")) else float(row["horizon_hours"])
+
+            if f_val is None or a_val is None:
+                continue
+
+            unc = compute_interval_uncertainty(
+                forecast_mw=f_val,
+                horizon_hours=h_val,
+                error_history=prior_history,
+                coverage=coverage,
+                min_block_samples=min_block_samples,
+            )
+            a_low = unc["actual_low_mw"]
+            if a_low is None:
+                continue
+
+            if demand_mw is not None:
+                rec_need = max(0.0, float(demand_mw - a_low))
+                act_need = max(0.0, float(demand_mw - a_val))
+                is_short = rec_need < act_need
+            else:
+                is_short = a_val < a_low
+
+            total_intervals += 1
+            if is_short:
+                total_short += 1
+            day_eval += 1
+
+        if day_eval > 0:
+            days_evaluated.append(target_d)
+
+    share = (total_short / float(total_intervals)) if total_intervals > 0 else 0.0
+    return {
+        "underprocurement_share": round(share, 4),
+        "underprocurement_pct": round(share * 100.0, 2),
+        "days_evaluated": len(days_evaluated),
+        "intervals_evaluated": total_intervals,
+        "intervals_short": total_short,
+        "coverage": coverage,
+        "note": "Share of January intervals where recommended buy fell short of actual need, using prior days only.",
+    }
+

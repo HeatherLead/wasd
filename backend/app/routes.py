@@ -226,22 +226,32 @@ def get_worst_intervals(
 def get_buy_range(
     date: str = Query(..., description="Delivery date (YYYY-MM-DD)", pattern=DATE_REGEX),
     demand_mw: Optional[float] = Query(None, description="Expected consumer demand in MW"),
-    cutoff_time: str = Query("09:00", description="Cutoff time on D-1 in UTC (format HH:MM)", pattern=CUTOFF_REGEX),
+    coverage: float = Query(0.90, description="Risk level coverage (e.g. 0.80, 0.90, 0.95)", ge=0.50, le=0.99),
+    cutoff: Optional[str] = Query(None, description="Cutoff time on D-1 in UTC (format HH:MM)", pattern=CUTOFF_REGEX),
+    cutoff_time: Optional[str] = Query("09:00", description="Cutoff time on D-1 in UTC (format HH:MM)", pattern=CUTOFF_REGEX),
 ) -> BuyRangeResponse:
     """
-    Returns recommended procurement buy range (low / central / high) per half-hour for delivery day D:
-    - Base need = demand - forecast wind
-    - Buy range per half-hour = base need + P10 error ... base need + P90 error, clamped at 0 MW
-    - Quantiles derive strictly from days BEFORE D (prior_days basis). If < 7 prior days, falls back to in_sample.
+    Returns recommended procurement buy range (base_need, recommended_need, buffer) per half-hour for delivery day D:
+    - Base need = max(demand - forecast, 0)
+    - Recommended need = max(demand - actual_low, 0) where actual_low comes from empirical quantile engine
+    - Buffer = recommended_need - base_need
+    - Daily totals in MWh (MW * 0.5h). Missing forecasts stay null.
+    - Small backtest figure: share of January intervals where recommended_need fell short of actual need.
     """
-    cutoff = validate_cutoff(cutoff_time)
+    applied_cutoff = cutoff if cutoff is not None else (cutoff_time or "09:00")
+    cutoff_val = validate_cutoff(applied_cutoff)
     if not re.match(DATE_REGEX, date.strip()):
         raise HTTPException(status_code=400, detail=f"Invalid date format '{date}'. Must be 'YYYY-MM-DD'.")
     if demand_mw is not None and demand_mw < 0:
         raise HTTPException(status_code=400, detail="demand_mw must be non-negative (>= 0).")
 
     try:
-        buy_range_data = data_store.get_buy_range(date_str=date.strip(), demand_mw=demand_mw, cutoff_time=cutoff)
+        buy_range_data = data_store.get_buy_range(
+            date_str=date.strip(),
+            demand_mw=demand_mw,
+            cutoff_time=cutoff_val,
+            coverage=coverage,
+        )
         return BuyRangeResponse(**buy_range_data)
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))

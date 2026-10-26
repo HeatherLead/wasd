@@ -584,7 +584,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
       >
         <div style={{ marginBottom: '1rem' }}>
           <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#000000' }}>
-            {windowMode === 'week' ? 'Error trend' : 'Forecast error trend'}
+            {windowMode === 'week' ? 'Trend followed' : 'Trend Followed'}
           </h3>
           <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#666666' }}>
             Negative error means actual generation was below predicted generation.
