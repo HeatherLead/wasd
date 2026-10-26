@@ -265,7 +265,6 @@ def calculate_p90_shortfall_mw(
     Calculates the 90th percentile of wind shortfalls (MW) when Forecast > Actual.
     Provides a historical buffer suggestion: sizing backup thermal capacity to this MW
     would have covered 90% of hourly wind deficits.
-    (Clearly labelled as a historical empirical benchmark, not predictive machine learning).
     """
     f, a = _filter_valid_pairs(forecast, actual)
     if len(f) == 0:

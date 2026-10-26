@@ -51,10 +51,10 @@ export const WorstIntervals: React.FC<WorstIntervalsProps> = ({
         <div>
           <h3 className="section-card-title">
             <AlertTriangle size={16} />
-            Ranked Largest Forecast Error Intervals (January 2026)
+            Biggest Prediction Misses (January 2026)
           </h3>
           <p className="section-card-subtitle">
-            Critical intervals with the largest commercial impact for the utility trading desk.
+            The hours where predictions were furthest from reality.
           </p>
         </div>
       </div>
@@ -64,19 +64,19 @@ export const WorstIntervals: React.FC<WorstIntervalsProps> = ({
         <div style={{ border: '1px solid var(--border-light)', borderRadius: '6px', padding: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Top 5 Overforecasts (Procurement Shortfalls)
+              Top 5 Predicted Too High (Shortfall)
             </span>
             <span style={{ fontSize: '11px', color: '#6c757d' }}>Forecast &gt;&gt; Actual</span>
           </div>
           <p style={{ fontSize: '11px', color: '#495057', marginBottom: '12px' }}>
-            Wind produced less than expected. The buyer had an unhedged deficit and had to procure additional thermal/balancing energy.
+            Wind delivered much less power than predicted. Backup power was needed to fill the gap.
           </p>
 
           <table className="data-table" style={{ fontSize: '11px' }}>
             <thead>
               <tr>
                 <th>Delivery Time (UTC)</th>
-                <th className="numeric-cell">Forecast</th>
+                <th className="numeric-cell">Predicted</th>
                 <th className="numeric-cell">Actual</th>
                 <th className="numeric-cell">Shortfall</th>
                 <th>Action</th>
@@ -114,12 +114,12 @@ export const WorstIntervals: React.FC<WorstIntervalsProps> = ({
         <div style={{ border: '1px solid var(--border-light)', borderRadius: '6px', padding: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Top 5 Underforecasts (Surplus Wind Events)
+              Top 5 Predicted Too Low (Surplus)
             </span>
             <span style={{ fontSize: '11px', color: '#6c757d' }}>Actual &gt;&gt; Forecast</span>
           </div>
           <p style={{ fontSize: '11px', color: '#495057', marginBottom: '12px' }}>
-            Wind produced more than scheduled. Excess energy spilled onto the system, exposed to imbalance settlement discount prices.
+            Wind delivered much more power than predicted (extra wind surplus).
           </p>
 
           <table className="data-table" style={{ fontSize: '11px' }}>

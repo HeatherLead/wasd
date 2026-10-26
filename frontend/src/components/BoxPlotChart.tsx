@@ -14,13 +14,15 @@ interface BoxPlotChartProps {
   p50AbsMw?: number | null;
   p90AbsMw?: number | null;
   p95AbsMw?: number | null;
+  subtitle?: string;
 }
 
 export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
   stats,
-  p50AbsMw,
-  p90AbsMw,
-  p95AbsMw,
+  p50AbsMw: _p50AbsMw,
+  p90AbsMw: _p90AbsMw,
+  p95AbsMw: _p95AbsMw,
+  subtitle,
 }) => {
   const [hoveredValue, setHoveredValue] = useState<string | null>(null);
 
@@ -64,10 +66,10 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
         <div>
           <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#000000' }}>
-            Forecast Error Distribution (Forecast − Actual, MW)
+            Outlier Check: Difference (Forecast − Actual)
           </h4>
           <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#666666' }}>
-            Sample: {stats.sample_count.toLocaleString()} intervals. Negative = Under-forecast (Surplus), Positive = Over-forecast (Shortfall).
+            {subtitle || 'Finds extreme hours that skewed the average. Left of 0 = predicted too low; Right of 0 = predicted too high.'}
           </p>
         </div>
         {hoveredValue && (
@@ -110,7 +112,7 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             fontWeight="bold"
             fill="#000000"
           >
-            0 MW (Perfect)
+            0 MW (Exact)
           </text>
 
           {/* Whisker Line (Low to High) */}
@@ -158,7 +160,7 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             fill="#f9f9f9"
             stroke="#000000"
             strokeWidth="2"
-            onMouseEnter={() => setHoveredValue(`IQR Box: Q1 = ${stats.q1_mw?.toLocaleString()} MW | Q3 = ${stats.q3_mw?.toLocaleString()} MW (IQR = ${stats.iqr_mw?.toLocaleString()} MW)`)}
+            onMouseEnter={() => setHoveredValue(`Middle 50%: ${stats.q1_mw?.toLocaleString()} MW to ${stats.q3_mw?.toLocaleString()} MW`)}
             onMouseLeave={() => setHoveredValue(null)}
           />
 
@@ -170,7 +172,7 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             y2={plotCenterY + boxHeight / 2}
             stroke={PRIMARY_COLOR}
             strokeWidth="4"
-            onMouseEnter={() => setHoveredValue(`Median Error: ${stats.median_mw?.toLocaleString()} MW`)}
+            onMouseEnter={() => setHoveredValue(`Median (Typical) Difference: ${stats.median_mw?.toLocaleString()} MW`)}
             onMouseLeave={() => setHoveredValue(null)}
           />
 
@@ -187,7 +189,7 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
                 stroke="#000000"
                 strokeWidth="1.5"
                 style={{ cursor: 'pointer' }}
-                onMouseEnter={() => setHoveredValue(`Outlier: ${outlierVal.toLocaleString()} MW`)}
+                onMouseEnter={() => setHoveredValue(`Outlier: ${outlierVal.toLocaleString()} MW (Extreme Miss)`)}
                 onMouseLeave={() => setHoveredValue(null)}
               />
             );
@@ -198,11 +200,11 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             {stats.whisker_low_mw?.toLocaleString()}
           </text>
           <text x={whiskerLowX} y={plotCenterY + 45} textAnchor="middle" fontSize="9" fill="#777777">
-            Whisker Low
+            Normal Min
           </text>
 
           <text x={q1X} y={plotCenterY - 26} textAnchor="middle" fontSize="10" fontWeight="bold" fill="#000000">
-            Q1: {stats.q1_mw?.toLocaleString()}
+            25%: {stats.q1_mw?.toLocaleString()}
           </text>
 
           <text x={medX} y={plotCenterY + 34} textAnchor="middle" fontSize="11" fontWeight="bold" fill={PRIMARY_COLOR}>
@@ -210,38 +212,42 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
           </text>
 
           <text x={q3X} y={plotCenterY - 26} textAnchor="middle" fontSize="10" fontWeight="bold" fill="#000000">
-            Q3: {stats.q3_mw?.toLocaleString()}
+            75%: {stats.q3_mw?.toLocaleString()}
           </text>
 
           <text x={whiskerHighX} y={plotCenterY + 34} textAnchor="middle" fontSize="10" fill="#333333">
             {stats.whisker_high_mw?.toLocaleString()}
           </text>
           <text x={whiskerHighX} y={plotCenterY + 45} textAnchor="middle" fontSize="9" fill="#777777">
-            Whisker High
+            Normal Max
           </text>
         </svg>
       </div>
 
-      {/* Percentiles Readout Bar */}
-      {(p50AbsMw !== undefined || p90AbsMw !== undefined || p95AbsMw !== undefined) && (
-        <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid #eeeeee', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-          <div style={{ fontSize: '0.85rem' }}>
-            <span style={{ color: '#666666', marginRight: '0.4rem' }}>P50 Absolute Error:</span>
-            <strong style={{ color: '#000000' }}>{p50AbsMw !== null && p50AbsMw !== undefined ? `${p50AbsMw.toLocaleString()} MW` : '—'}</strong>
-          </div>
-          <div style={{ fontSize: '0.85rem' }}>
-            <span style={{ color: '#666666', marginRight: '0.4rem' }}>P90 Absolute Error:</span>
-            <strong style={{ color: '#000000' }}>{p90AbsMw !== null && p90AbsMw !== undefined ? `${p90AbsMw.toLocaleString()} MW` : '—'}</strong>
-          </div>
-          <div style={{ fontSize: '0.85rem' }}>
-            <span style={{ color: '#666666', marginRight: '0.4rem' }}>P95 Absolute Error:</span>
-            <strong style={{ color: '#000000' }}>{p95AbsMw !== null && p95AbsMw !== undefined ? `${p95AbsMw.toLocaleString()} MW` : '—'}</strong>
-          </div>
-          <div style={{ fontSize: '0.8rem', color: '#666666', marginLeft: 'auto' }}>
-            Outliers: <strong>{stats.outliers?.length ?? 0}</strong> points ({((stats.outliers?.length ?? 0) / (stats.sample_count || 1) * 100).toFixed(1)}%)
-          </div>
+      {/* Simplified Readout Bar */}
+      <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid #eeeeee', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ fontSize: '0.85rem' }}>
+          <span style={{ color: '#666666', marginRight: '0.4rem' }}>Median:</span>
+          <strong style={{ color: PRIMARY_COLOR }}>{stats.median_mw !== null && stats.median_mw !== undefined ? `${stats.median_mw.toLocaleString()} MW` : '—'}</strong>
         </div>
-      )}
+        <div style={{ fontSize: '0.85rem' }}>
+          <span style={{ color: '#666666', marginRight: '0.4rem' }}>Middle Range:</span>
+          <strong style={{ color: '#000000' }}>
+            {stats.q1_mw !== null && stats.q3_mw !== null ? `${stats.q1_mw.toLocaleString()} to ${stats.q3_mw.toLocaleString()} MW` : '—'}
+          </strong>
+        </div>
+        <div style={{ fontSize: '0.85rem', marginLeft: 'auto' }}>
+          <span style={{ color: '#666666', marginRight: '0.4rem' }}>Outliers:</span>
+          <strong style={{ color: (stats.outliers?.length ?? 0) > 0 ? '#b45309' : '#000000' }}>
+            {stats.outliers?.length ?? 0} extreme points
+          </strong>
+          {(stats.outliers?.length ?? 0) > 0 && (
+            <span style={{ marginLeft: '0.4rem', color: '#666666', fontSize: '0.8rem' }}>
+              (skewed the average)
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

@@ -38,13 +38,16 @@
   --radius-lg: 8px;
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html, body {
+html,
+body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -65,14 +68,18 @@ a {
   text-underline-offset: 2px;
 }
 
-button, input, select {
+button,
+input,
+select {
   font-family: inherit;
   font-size: inherit;
   color: inherit;
 }
 
 /* Primary Button & Action Styles */
-.btn-primary, button.btn-primary, .button-primary {
+.btn-primary,
+button.btn-primary,
+.button-primary {
   background-color: var(--color-primary);
   color: #ffffff !important;
   border: 1px solid var(--color-primary);
@@ -88,22 +95,30 @@ button, input, select {
   transition: all 0.15s ease;
 }
 
-.btn-primary:hover:not(:disabled), button.btn-primary:hover:not(:disabled), .button-primary:hover:not(:disabled) {
+.btn-primary:hover:not(:disabled),
+button.btn-primary:hover:not(:disabled),
+.button-primary:hover:not(:disabled) {
   background-color: var(--primary-hover);
   border-color: var(--primary-hover);
 }
 
-.btn-primary:active:not(:disabled), button.btn-primary:active:not(:disabled), .button-primary:active:not(:disabled) {
+.btn-primary:active:not(:disabled),
+button.btn-primary:active:not(:disabled),
+.button-primary:active:not(:disabled) {
   background-color: var(--primary-active);
   border-color: var(--primary-active);
 }
 
-.btn-primary:focus-visible, button.btn-primary:focus-visible, .button-primary:focus-visible {
+.btn-primary:focus-visible,
+button.btn-primary:focus-visible,
+.button-primary:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
-.btn-primary:disabled, button.btn-primary:disabled, .button-primary:disabled {
+.btn-primary:disabled,
+button.btn-primary:disabled,
+.button-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -211,7 +226,8 @@ button, input, select {
   color: var(--text-secondary);
 }
 
-.control-select, .control-input {
+.control-select,
+.control-input {
   background-color: var(--bg-primary);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-sm);
@@ -223,7 +239,8 @@ button, input, select {
   transition: border-color 0.15s ease;
 }
 
-.control-select:focus, .control-input:focus {
+.control-select:focus,
+.control-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 1px var(--color-primary);
 }
@@ -362,15 +379,6 @@ button, input, select {
   z-index: 100;
   margin-top: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* Card Section */
-.section-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  padding: 20px;
-  margin-bottom: 24px;
 }
 
 .section-card-header {
@@ -546,9 +554,17 @@ button, input, select {
 }
 
 @keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
+  0% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.6;
+  }
 }
 
 .error-banner {
@@ -590,12 +606,15 @@ button, input, select {
   .app-header {
     padding: 12px 16px;
   }
+
   .app-content {
     padding: 16px;
   }
+
   .kpi-grid {
     grid-template-columns: 1fr;
   }
+
   .header-top {
     flex-direction: column;
     align-items: flex-start;
@@ -649,6 +668,7 @@ button, input, select {
     opacity: 0;
     transform: translateY(-4px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -659,14 +679,43 @@ button, input, select {
 [role="listbox"]::-webkit-scrollbar {
   width: 5px;
 }
+
 [role="listbox"]::-webkit-scrollbar-track {
   background: transparent;
 }
+
 [role="listbox"]::-webkit-scrollbar-thumb {
   background-color: #d1d5db;
   border-radius: 4px;
 }
+
 [role="listbox"]::-webkit-scrollbar-thumb:hover {
   background-color: #9ca3af;
 }
 
+/* Forecast Error Trend & Bento Grid Layout (70% Graph, 30% Bento Grid) */
+.trend-layout-container {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.trend-graph-pane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.trend-bento-pane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (max-width: 992px) {
+  .trend-layout-container {
+    grid-template-columns: 1fr;
+  }
+}

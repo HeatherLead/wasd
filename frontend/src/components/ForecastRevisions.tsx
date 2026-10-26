@@ -97,10 +97,10 @@ export const ForecastRevisions: React.FC<ForecastRevisionsProps> = ({
         <div>
           <h3 className="section-card-title">
             <History size={16} />
-            Forecast Revision Trajectory for Target: {targetLabel}
+            Forecast Revision History — {targetLabel}
           </h3>
           <p className="section-card-subtitle">
-            Historical evolution of published wind forecasts over time versus final physical outturn ({data.actual_generation_mw?.toLocaleString() ?? '—'} MW).
+            How predictions changed over time before the cutoff, compared to real power delivered ({data.actual_generation_mw?.toLocaleString() ?? '—'} MW).
           </p>
         </div>
 

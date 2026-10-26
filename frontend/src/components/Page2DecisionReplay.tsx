@@ -47,39 +47,17 @@ interface Page2DecisionReplayProps {
 export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
   selectedDate,
   onSelectDate,
-  cutoffTime,
+  cutoffTime: _cutoffTime,
   dayDetail,
   isLoading,
   days,
-  summary,
+  summary: _summary,
   demandMw,
   onDemandChange,
   onNavigateToPage3,
 }) => {
   const [revealActuals, setRevealActuals] = useState(false);
   const [demandInput, setDemandInput] = useState<string>(demandMw ? String(demandMw) : '');
-
-  // Calculate cutoff date string (D-1)
-  const dObj = new Date(selectedDate);
-  dObj.setUTCDate(dObj.getUTCDate() - 1);
-  const cutoffDateStr = dObj.toISOString().slice(0, 10);
-
-  // Determine latest publishTime used across intervals
-  const publishTimes = (dayDetail?.intervals ?? [])
-    .map((i) => i.forecast_publish_time)
-    .filter((t): t is string => Boolean(t));
-
-  let publishTimeBanner = 'published 08:30 UTC';
-  if (publishTimes.length > 0) {
-    const sortedPubs = [...new Set(publishTimes)].sort();
-    if (sortedPubs.length === 1) {
-      publishTimeBanner = `published ${sortedPubs[0].slice(11, 16)} UTC`;
-    } else {
-      const minP = sortedPubs[0].slice(11, 16);
-      const maxP = sortedPubs[sortedPubs.length - 1].slice(11, 16);
-      publishTimeBanner = `published ${minP} – ${maxP} UTC`;
-    }
-  }
 
   // Handle user demand submit
   const handleDemandBlurOrSubmit = () => {
@@ -124,8 +102,6 @@ export const Page2DecisionReplay: React.FC<Page2DecisionReplayProps> = ({
     totalDemandMwh = demandMw * 24;
     totalResidualMwh = chartData.reduce((acc, item) => acc + (item.residualNeedMw ?? 0) * 0.5, 0);
   }
-
-  const overRatePct = summary?.kpis?.overforecast_rate_pct ?? 85.1;
 
   return (
     <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>

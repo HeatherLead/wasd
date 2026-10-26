@@ -124,11 +124,13 @@ class DataStore:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        # Dynamically compute for custom cutoff
+        # Dynamically compute for custom cutoff across all delivery days in dataset (Dec 25 - Jan 31)
         h, m = self.parse_cutoff(cutoff_key)
-        # All January delivery days
-        jan_days = [date(2026, 1, d) for d in range(1, 32)]
-        decision_df = select_decision_forecasts(self.df_forecasts_raw, jan_days, cutoff_hour=h, cutoff_minute=m)
+        if not self.df_joined_hourly_default.empty and "delivery_date" in self.df_joined_hourly_default.columns:
+            delivery_days = sorted(self.df_joined_hourly_default["delivery_date"].unique())
+        else:
+            delivery_days = [date(2026, 1, d) for d in range(1, 32)]
+        decision_df = select_decision_forecasts(self.df_forecasts_raw, delivery_days, cutoff_hour=h, cutoff_minute=m)
         joined_df = join_forecasts_and_actuals(decision_df, self.df_actuals, mode=mode)
         
         self._cache[cache_key] = joined_df

@@ -254,8 +254,8 @@ export const App: React.FC = () => {
                 selectedDate={selectedDate}
                 onSelectDate={(newDate) => {
                   setSelectedDate(newDate);
-                  setActivePage('replay');
                 }}
+                cutoffTime={cutoffTime}
                 dayDetail={dayDetail}
                 isLoadingDayDetail={loadingDayDetail}
               />
@@ -288,17 +288,19 @@ export const App: React.FC = () => {
               />
             )}
 
-            {/* Secondary Details Section (Collapsed by Default) */}
-            <DetailsSection
-              dayDetail={dayDetail}
-              selectedDate={selectedDate}
-              cutoffTime={cutoffTime}
-              summary={summaryData}
-              onSelectDay={(d) => {
-                setSelectedDate(d);
-                setActivePage('replay');
-              }}
-            />
+            {/* Secondary Details Section (Only for Page 2 & Page 3, since Page 1 has integrated audits) */}
+            {activePage !== 'accuracy' && (
+              <DetailsSection
+                dayDetail={dayDetail}
+                selectedDate={selectedDate}
+                cutoffTime={cutoffTime}
+                summary={summaryData}
+                onSelectDay={(d) => {
+                  setSelectedDate(d);
+                  setActivePage('replay');
+                }}
+              />
+            )}
           </>
         )}
       </main>
