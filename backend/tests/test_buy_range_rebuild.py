@@ -295,7 +295,7 @@ def test_buy_range_api_endpoint(client):
     assert data["coverage"] == 0.90
     assert data["cutoff_time"] == "09:00"
     assert data["basis"] == "prior_days"
-    assert data["prior_days_count"] == 14
+    assert data["prior_days_count"] == 13  # Jan 1 - Jan 13 completed prior to D-1 09:00 cutoff
 
     # Intervals
     assert len(data["intervals"]) == 48

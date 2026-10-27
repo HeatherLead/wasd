@@ -176,24 +176,6 @@ def test_summary_includes_shortfall_and_buffer_metrics(client):
     assert kpis["p90_shortfall_buffer_mw"] > 0
 
 
-def test_revisions_endpoint(client):
-    # Target 2026-01-01 12:00:00Z
-    response = client.get("/api/revisions?target_time=2026-01-01T12:00:00Z&cutoff_time=09:00")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["target_time"] == "2026-01-01T12:00:00+00:00"
-    assert data["actual_generation_mw"] is not None
-    assert data["decision_publish_time"] is not None
-    assert data["total_revisions"] > 0
-    
-    # Exactly one revision must be marked is_decision_forecast
-    dec_revs = [r for r in data["revisions"] if r["is_decision_forecast"]]
-    assert len(dec_revs) == 1
-    assert dec_revs[0]["is_eligible"] is True
-    # Confirm chosen decision forecast publish time matches
-    assert dec_revs[0]["publish_time"] == data["decision_publish_time"]
-
-
 def test_worst_intervals_endpoint(client):
     response = client.get("/api/worst-intervals?cutoff_time=09:00&top_n=5")
     assert response.status_code == 200

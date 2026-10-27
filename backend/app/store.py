@@ -477,93 +477,6 @@ class DataStore:
             "box_plot": box_stats,
         }
 
-    def get_forecast_revisions(
-        self,
-        target_time: str,
-        cutoff_time: str = "09:00",
-    ) -> Dict[str, Any]:
-        """
-        Retrieves the complete historical revision trajectory for a given target interval.
-        Shows how the forecast evolved across successive publication runs, marking which
-        revision was locked in at the D-1 decision cutoff.
-        """
-        try:
-            target_dt = pd.Timestamp(target_time)
-            if target_dt.tz is None:
-                target_dt = target_dt.tz_localize("UTC")
-            else:
-                target_dt = target_dt.tz_convert("UTC")
-        except Exception:
-            raise ValueError(f"Invalid target_time '{target_time}'. Must be ISO-8601 UTC timestamp.")
-
-        delivery_date = target_dt.date()
-        cutoff_h, cutoff_m = self.parse_cutoff(cutoff_time)
-
-        # Cutoff is D-1 at cutoff_h:cutoff_m UTC
-        d_prev = delivery_date - timedelta(days=1)
-        cutoff_dt = pd.Timestamp(
-            year=d_prev.year,
-            month=d_prev.month,
-            day=d_prev.day,
-            hour=cutoff_h,
-            minute=cutoff_m,
-            tz="UTC"
-        )
-
-        # Filter all forecasts in raw dataset targeting this exact start_time
-        # Round target_dt to hour if WINDFOR is hourly
-        target_hour = target_dt.floor("1h")
-        subset = self.df_forecasts_raw[self.df_forecasts_raw["start_time"] == target_hour].copy()
-        if subset.empty:
-            raise ValueError(f"No forecast revisions found for target time '{target_time}'.")
-
-        subset = subset.sort_values("publish_time").reset_index(drop=True)
-
-        # Find the decision-time forecast: latest publish_time <= cutoff_dt
-        eligible = subset[subset["publish_time"] <= cutoff_dt]
-        decision_publish_dt = eligible["publish_time"].max() if not eligible.empty else None
-
-        # Fetch actual outturn for this target time
-        # Check if actual exists for target_dt or target_hour
-        act_subset = self.df_actuals[self.df_actuals["start_time"].dt.floor("1h") == target_hour]
-        actual_val = float(act_subset["actual_generation_mw"].mean()) if not act_subset.empty else None
-
-        revisions = []
-        decision_forecast_mw = None
-
-        for _, row in subset.iterrows():
-            pub_dt = row["publish_time"]
-            f_gen = float(row["forecast_generation_mw"])
-            is_elig = pub_dt <= cutoff_dt
-            is_dec = (decision_publish_dt is not None and pub_dt == decision_publish_dt)
-
-            if is_dec:
-                decision_forecast_mw = f_gen
-
-            horiz = (target_hour - pub_dt).total_seconds() / 3600.0
-            err_vs_act = (f_gen - actual_val) if actual_val is not None else None
-
-            revisions.append({
-                "publish_time": pub_dt.isoformat(),
-                "forecast_generation_mw": f_gen,
-                "horizon_hours": round(horiz, 1),
-                "is_eligible": is_elig,
-                "is_decision_forecast": is_dec,
-                "error_vs_actual_mw": round(err_vs_act, 1) if err_vs_act is not None else None,
-            })
-
-        return {
-            "target_time": target_hour.isoformat(),
-            "delivery_date": str(delivery_date),
-            "cutoff_time": cutoff_time,
-            "cutoff_datetime": cutoff_dt.isoformat(),
-            "actual_generation_mw": round(actual_val, 1) if actual_val is not None else None,
-            "decision_publish_time": decision_publish_dt.isoformat() if decision_publish_dt is not None else None,
-            "decision_forecast_mw": decision_forecast_mw,
-            "total_revisions": len(revisions),
-            "revisions": revisions,
-        }
-
     def get_worst_intervals(
         self,
         cutoff_time: str = "09:00",
@@ -672,10 +585,10 @@ class DataStore:
 
         if prior_days_count >= 7:
             basis = "prior_days"
-            note = f"Based on {prior_days_count} days of January 2026 history prior to {date_str}. Historical range, not a guarantee."
+            note = f"Based on {prior_days_count} completed days of January 2026 history prior to decision cutoff on D-1. Historical range, not a guarantee."
         else:
             basis = "in_sample"
-            note = f"In-sample estimate based on all 31 days of January 2026 (fewer than 7 prior days available before {date_str}). Historical range, not a guarantee."
+            note = f"In-sample estimate based on all 31 days of January 2026 (fewer than 7 completed prior days available before decision time on D-1). Historical range, not a guarantee."
             if len(error_history) < 20:
                 error_history = df_hh.dropna(subset=["forecast_generation_mw", "actual_generation_mw", "error_mw"]).copy()
 

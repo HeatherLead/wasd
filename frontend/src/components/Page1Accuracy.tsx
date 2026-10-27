@@ -38,17 +38,29 @@ interface Page1AccuracyProps {
   isLoadingDayDetail: boolean;
 }
 
-type WindowMode = 'week' | 'month';
+type WindowMode = 'week' | 'decision_month' | 'month';
 
 function getRangeForWindow(simDateStr: string, mode: WindowMode) {
   if (mode === 'month') {
     return MONTH_RANGE_JANUARY;
   }
   const simDate = new Date(`${simDateStr}T00:00:00Z`);
+  // Critical fix for look-ahead leakage (Critique 1):
+  // When making day-ahead decisions for Jan 15 at 09:00 on Jan 14, Jan 14 actuals do NOT exist yet.
+  // The most recent settled/completed historical day is D-2 (Jan 13).
   const endDateObj = new Date(simDate);
-  endDateObj.setUTCDate(endDateObj.getUTCDate() - 1);
+  endDateObj.setUTCDate(endDateObj.getUTCDate() - 2);
+
+  if (mode === 'decision_month') {
+    return {
+      startDate: '2026-01-01',
+      endDate: endDateObj.toISOString().slice(0, 10),
+    };
+  }
+
+  // Trailing 7 completed days: D-8 through D-2 (e.g. 7 Jan through 13 Jan for 15 Jan delivery)
   const startDateObj = new Date(simDate);
-  startDateObj.setUTCDate(startDateObj.getUTCDate() - 7);
+  startDateObj.setUTCDate(startDateObj.getUTCDate() - 8);
   return {
     startDate: startDateObj.toISOString().slice(0, 10),
     endDate: endDateObj.toISOString().slice(0, 10),
@@ -108,9 +120,10 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
 
   const meanActual = kpis?.mean_actual_mw ?? 0;
   const meanForecast = kpis?.mean_forecast_mw ?? 0;
-  const diffMw = meanActual - meanForecast;
-  const pctDiff = meanForecast > 0 ? ((meanActual - meanForecast) / meanForecast) * 100 : 0;
-  const isShort = pctDiff < 0;
+  // Standardized energy convention: Error = Forecast - Actual (positive = Overforecast / Shortfall)
+  const diffMw = meanForecast - meanActual;
+  const pctDiff = meanForecast > 0 ? ((meanForecast - meanActual) / meanForecast) * 100 : 0;
+  const isOverforecast = diffMw > 0;
   const absPct = Math.abs(pctDiff).toFixed(1);
   const absMw = Math.abs(Math.round(diffMw)).toLocaleString();
 
@@ -124,7 +137,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
       actualMw: d.mean_actual_mw !== null ? Math.round(d.mean_actual_mw) : null,
       diffMw:
         d.mean_actual_mw !== null && d.mean_forecast_mw !== null
-          ? Math.round(d.mean_actual_mw - d.mean_forecast_mw)
+          ? Math.round(d.mean_forecast_mw - d.mean_actual_mw)
           : null,
     };
   });
@@ -135,8 +148,8 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
       const isDec = d.delivery_date.slice(5, 7) === '12';
       const dayNum = parseInt(d.delivery_date.slice(8), 10);
       const label = `${dayNum} ${isDec ? 'Dec' : 'Jan'}`;
-      const gap = Math.abs(d.mean_actual_mw! - d.mean_forecast_mw!);
-      const raw = d.mean_actual_mw! - d.mean_forecast_mw!;
+      const gap = Math.abs(d.mean_forecast_mw! - d.mean_actual_mw!);
+      const raw = d.mean_forecast_mw! - d.mean_actual_mw!;
       return {
         date: d.delivery_date,
         label,
@@ -164,7 +177,8 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
 
     const actual = d.mean_actual_mw !== null ? Math.round(d.mean_actual_mw) : null;
     const forecast = d.mean_forecast_mw !== null ? Math.round(d.mean_forecast_mw) : null;
-    const errorMw = actual !== null && forecast !== null ? actual - forecast : null;
+    // Forecast - Actual: positive = Overforecast / Shortfall, negative = Surplus
+    const errorMw = actual !== null && forecast !== null ? forecast - actual : null;
 
     let rollingAvgMw: number | null = null;
     if (errorMw !== null) {
@@ -172,7 +186,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         .slice(Math.max(0, index - 2), index + 1)
         .map((item) =>
           item.mean_actual_mw !== null && item.mean_forecast_mw !== null
-            ? Math.round(item.mean_actual_mw - item.mean_forecast_mw)
+            ? Math.round(item.mean_forecast_mw - item.mean_actual_mw)
             : null
         )
         .filter((v): v is number => v !== null);
@@ -199,8 +213,10 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
 
   const validTrendItems = errorTrendData.filter((d) => d.errorMw !== null);
   const totalTrendDays = validTrendItems.length;
-  const overpredictedCount = validTrendItems.filter((d) => d.errorMw! < 0).length;
-  const underpredictedCount = validTrendItems.filter((d) => d.errorMw! > 0).length;
+  // Positive error = Over-forecast / Shortfall
+  const overpredictedCount = validTrendItems.filter((d) => d.errorMw! > 0).length;
+  // Negative error = Under-forecast / Surplus
+  const underpredictedCount = validTrendItems.filter((d) => d.errorMw! < 0).length;
   const avgTrendErrorMw =
     totalTrendDays > 0
       ? Math.round(validTrendItems.reduce((acc, d) => acc + d.errorMw!, 0) / totalTrendDays)
@@ -220,24 +236,24 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
       trendBadge = 'Shortfall Pattern';
       trendHeadline =
         windowMode === 'week'
-          ? 'Predictions Higher Than Actual For Entire Week'
-          : 'Predictions Consistently Higher Than Actual Generation';
-      trendExplanation = `For the entire past 7 days, predictions were higher than actual generation every single day (averaging ${Math.abs(avgTrendErrorMw).toLocaleString()} MW below forecast). Real wind underperformed the forecast continuously.`;
+          ? 'Forecast Exceeded Actual Generation For Entire Week'
+          : 'Forecast Consistently Exceeded Actual Generation';
+      trendExplanation = `For the entire past 7 days, predictions were higher than actual generation every single day (averaging +${Math.abs(avgTrendErrorMw).toLocaleString()} MW shortfall). Real wind underperformed the forecast continuously.`;
     } else if (overpredictedCount >= Math.ceil(totalTrendDays * 0.7)) {
       trendBadge = 'Overpredicted';
-      trendHeadline = `Predictions Ran High on ${overpredictedCount} of ${totalTrendDays} Days`;
-      trendExplanation = `During this period, predictions were higher than actual generation on ${overpredictedCount} of ${totalTrendDays} days (averaging ${Math.abs(avgTrendErrorMw).toLocaleString()} MW below forecast). The forecast showed an ongoing tendency to overestimate wind power.`;
+      trendHeadline = `Forecast Ran High on ${overpredictedCount} of ${totalTrendDays} Days`;
+      trendExplanation = `During this period, predictions were higher than actual generation on ${overpredictedCount} of ${totalTrendDays} days (averaging +${Math.abs(avgTrendErrorMw).toLocaleString()} MW shortfall). The forecast showed an ongoing tendency to overestimate wind power.`;
     } else if (underpredictedCount === totalTrendDays) {
       trendBadge = 'Surplus Pattern';
       trendHeadline =
         windowMode === 'week'
           ? 'Actual Wind Exceeded Predictions For Entire Week'
           : 'Actual Wind Consistently Exceeded Predictions';
-      trendExplanation = `For the entire past 7 days, actual wind generation delivered more power than predicted every single day (averaging +${Math.abs(avgTrendErrorMw).toLocaleString()} MW surplus). Real generation beat expectations all week.`;
+      trendExplanation = `For the entire past 7 days, actual wind generation delivered more power than predicted every single day (averaging -${Math.abs(avgTrendErrorMw).toLocaleString()} MW surplus). Real generation beat expectations all week.`;
     } else if (underpredictedCount >= Math.ceil(totalTrendDays * 0.7)) {
       trendBadge = 'Underpredicted';
       trendHeadline = `Actual Wind Exceeded Predictions on ${underpredictedCount} of ${totalTrendDays} Days`;
-      trendExplanation = `During this period, actual wind was higher than predicted on ${underpredictedCount} of ${totalTrendDays} days (averaging +${Math.abs(avgTrendErrorMw).toLocaleString()} MW surplus). Wind output was consistently underpredicted.`;
+      trendExplanation = `During this period, actual wind was higher than predicted on ${underpredictedCount} of ${totalTrendDays} days (averaging -${Math.abs(avgTrendErrorMw).toLocaleString()} MW surplus). Wind output was consistently underpredicted.`;
     } else {
       trendBadge = 'Mixed Errors';
       trendHeadline = `Mixed Forecast Performance (${overpredictedCount} High, ${underpredictedCount} Low)`;
@@ -246,9 +262,9 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
 
     if (firstRolling !== null && lastRolling !== null && totalTrendDays >= 4) {
       const change = lastRolling - firstRolling;
-      if (avgTrendErrorMw < 0 && change < -300) {
+      if (avgTrendErrorMw > 0 && change > 300) {
         trendExplanation += ' The shortfall gap widened as the week progressed.';
-      } else if (avgTrendErrorMw < 0 && change > 300) {
+      } else if (avgTrendErrorMw > 0 && change < -300) {
         trendExplanation += ' The error gap narrowed towards the end of the week.';
       }
     }
@@ -285,24 +301,24 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                 borderRadius: '3px',
                 fontSize: '10px',
                 fontWeight: 700,
-                backgroundColor: isShort ? '#dce5f0' : '#e8f5ec',
-                color: isShort ? '#3883e7' : PRIMARY_COLOR,
+                backgroundColor: isOverforecast ? '#dce5f0' : '#e8f5ec',
+                color: isOverforecast ? '#3883e7' : PRIMARY_COLOR,
                 textTransform: 'uppercase',
                 letterSpacing: '0.03em',
               }}
             >
-              {isShort ? 'Shortfall Deficit' : 'Wind Surplus'}
+              {isOverforecast ? 'Over-Forecast / Shortfall' : 'Under-Forecast / Surplus'}
             </span>
             <span style={{ fontSize: '13px', fontWeight: 700, color: '#000000' }}>
-              {isShort
-                ? `Actual was ${absPct}% short of predicted`
-                : `Actual was ${absPct}% more than predicted`}
+              {isOverforecast
+                ? `Forecast was ${absPct}% higher than actual generation`
+                : `Actual was ${absPct}% higher than predicted forecast`}
             </span>
           </div>
           <div style={{ fontSize: '11px', color: '#555555', lineHeight: 1.25 }}>
-            {isShort
-              ? `Real wind delivered ${absMw} MW less power than predicted on average.`
-              : `Real wind delivered ${absMw} MW more power than predicted on average (clean power surplus).`}
+            {isOverforecast
+              ? `Real wind delivered ${absMw} MW less power than predicted on average (requiring thermal top-up).`
+              : `Real wind delivered ${absMw} MW more power than predicted on average (clean surplus).`}
           </div>
         </div>
 
@@ -322,16 +338,16 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
           <div style={{ fontSize: '10px', fontWeight: 700, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
             Max Difference
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: maxDiffItem && maxDiffItem.rawDiff > 0 ? PRIMARY_COLOR : '#3883e7', margin: '1px 0', fontVariantNumeric: 'tabular-nums', display: 'flex', alignItems: 'baseline', gap: '3px' }}>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: maxDiffItem && maxDiffItem.rawDiff > 0 ? '#3883e7' : PRIMARY_COLOR, margin: '1px 0', fontVariantNumeric: 'tabular-nums', display: 'flex', alignItems: 'baseline', gap: '3px' }}>
             <span>
               {maxDiffItem
                 ? `${maxDiffItem.rawDiff > 0 ? '+' : '-'}${Math.round(maxDiffItem.absDiff).toLocaleString()}`
                 : '—'}
             </span>
-            <span style={{ fontSize: '10px', fontWeight: 600, color: maxDiffItem && maxDiffItem.rawDiff > 0 ? PRIMARY_COLOR : '#3883e7' }}>MW</span>
+            <span style={{ fontSize: '10px', fontWeight: 600, color: maxDiffItem && maxDiffItem.rawDiff > 0 ? '#3883e7' : PRIMARY_COLOR }}>MW</span>
           </div>
           <div style={{ fontSize: '10px', color: '#777777', lineHeight: 1.2 }}>
-            {maxDiffItem ? `Largest gap on ${maxDiffItem.label}` : 'Peak difference'}
+            {maxDiffItem ? `Largest error on ${maxDiffItem.label}` : 'Peak difference'}
           </div>
         </div>
 
@@ -351,13 +367,13 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
           <div style={{ fontSize: '10px', fontWeight: 700, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
             Least Difference
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: minDiffItem && minDiffItem.rawDiff > 0 ? PRIMARY_COLOR : '#3883e7', margin: '1px 0', fontVariantNumeric: 'tabular-nums', display: 'flex', alignItems: 'baseline', gap: '3px' }}>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: minDiffItem && minDiffItem.rawDiff > 0 ? '#3883e7' : PRIMARY_COLOR, margin: '1px 0', fontVariantNumeric: 'tabular-nums', display: 'flex', alignItems: 'baseline', gap: '3px' }}>
             <span>
               {minDiffItem
                 ? `${minDiffItem.rawDiff > 0 ? '+' : '-'}${Math.round(minDiffItem.absDiff).toLocaleString()}`
                 : '—'}
             </span>
-            <span style={{ fontSize: '10px', fontWeight: 600, color: minDiffItem && minDiffItem.rawDiff > 0 ? PRIMARY_COLOR : '#3883e7' }}>MW</span>
+            <span style={{ fontSize: '10px', fontWeight: 600, color: minDiffItem && minDiffItem.rawDiff > 0 ? '#3883e7' : PRIMARY_COLOR }}>MW</span>
           </div>
           <div style={{ fontSize: '10px', color: '#777777', lineHeight: 1.2 }}>
             {minDiffItem ? `Closest match on ${minDiffItem.label}` : 'Smallest difference'}
@@ -378,13 +394,13 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
           }}
         >
           <div style={{ fontSize: '10px', fontWeight: 700, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-            Difference
+            Mean Error (Forecast − Actual)
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: isShort ? '#3883e7' : PRIMARY_COLOR, margin: '1px 0', fontVariantNumeric: 'tabular-nums' }}>
-            {isShort ? `-${absMw}` : `+${absMw}`} <span style={{ fontSize: '10px', fontWeight: 600 }}>MW</span>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: isOverforecast ? '#3883e7' : PRIMARY_COLOR, margin: '1px 0', fontVariantNumeric: 'tabular-nums' }}>
+            {isOverforecast ? `+${absMw}` : `-${absMw}`} <span style={{ fontSize: '10px', fontWeight: 600 }}>MW</span>
           </div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: isShort ? '#3883e7' : PRIMARY_COLOR, lineHeight: 1.2 }}>
-            {isShort ? `-${absPct}% shortfall` : `+${absPct}% surplus`}
+          <div style={{ fontSize: '10px', fontWeight: 700, color: isOverforecast ? '#3883e7' : PRIMARY_COLOR, lineHeight: 1.2 }}>
+            {isOverforecast ? `+${absPct}% shortfall` : `-${absPct}% surplus`}
           </div>
         </div>
       </section>
@@ -397,8 +413,10 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
             </h3>
             <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#666666' }}>
               {windowMode === 'week'
-                ? `Showing past 7 days before ${formatDate(selectedDate)} (${formatDate(startDate)} – ${formatDate(endDate)})`
-                : 'Showing full month of January 2026'}
+                ? `Trailing 7 completed days available at decision time (${formatDate(startDate)} – ${formatDate(endDate)})`
+                : windowMode === 'decision_month'
+                  ? `Completed month-to-date available at decision time (${formatDate(startDate)} – ${formatDate(endDate)})`
+                  : 'Full month of January 2026 (post-mortem retrospective)'}
             </p>
           </div>
 
@@ -418,7 +436,24 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                 transition: 'all 0.15s ease',
               }}
             >
-              Previous Week (7 Days)
+              Trailing Week (D-8 to D-2)
+            </button>
+            <button
+              type="button"
+              onClick={() => setWindowMode('decision_month')}
+              style={{
+                padding: '0.35rem 0.75rem',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                borderRadius: '4px',
+                border: 'none',
+                backgroundColor: windowMode === 'decision_month' ? PRIMARY_COLOR : 'transparent',
+                color: windowMode === 'decision_month' ? '#ffffff' : '#000000',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Month-to-Date (1–13 Jan)
             </button>
             <button
               type="button"
@@ -435,7 +470,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                 transition: 'all 0.15s ease',
               }}
             >
-              Previous Month (Jan)
+              Full Jan (Post-Mortem)
             </button>
           </div>
         </div>
@@ -471,23 +506,23 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                   if (!active || !payload || !payload.length) return null;
                   const fVal = payload.find((p) => p.dataKey === 'forecastMw')?.value as number;
                   const aVal = payload.find((p) => p.dataKey === 'actualMw')?.value as number;
-                  const diff = aVal !== undefined && fVal !== undefined ? aVal - fVal : null;
+                  const diff = aVal !== undefined && fVal !== undefined ? fVal - aVal : null;
                   return (
                     <div style={{ backgroundColor: '#ffffff', border: '1px solid #000000', padding: '0.6rem 0.8rem', fontSize: '0.8rem', boxShadow: '0 2px 4px rgba(0,0,0,0.08)', borderRadius: '4px' }}>
                       <div style={{ fontWeight: 700, marginBottom: '0.3rem', color: '#000000' }}>
                         {label}
                       </div>
                       <div style={{ color: PRIMARY_COLOR, fontWeight: 600 }}>
-                        Predicted: <strong>{fVal !== null && fVal !== undefined ? `${fVal.toLocaleString()} MW` : '—'}</strong>
+                        Predicted Forecast: <strong>{fVal !== null && fVal !== undefined ? `${fVal.toLocaleString()} MW` : '—'}</strong>
                       </div>
                       <div style={{ color: '#444444', fontWeight: 600 }}>
-                        Real Power: <strong>{aVal !== null && aVal !== undefined ? `${aVal.toLocaleString()} MW` : '—'}</strong>
+                        Real Power Delivered: <strong>{aVal !== null && aVal !== undefined ? `${aVal.toLocaleString()} MW` : '—'}</strong>
                       </div>
                       {diff !== null && (
-                        <div style={{ marginTop: '0.3rem', paddingTop: '0.3rem', borderTop: '1px solid #eeeeee', fontWeight: 700, color: diff < 0 ? '#e49d0e' : PRIMARY_COLOR }}>
-                          {diff < 0
-                            ? `Short by ${Math.abs(diff).toLocaleString()} MW (${((Math.abs(diff) / (fVal || 1)) * 100).toFixed(1)}%)`
-                            : `Over by ${diff.toLocaleString()} MW (+${((diff / (fVal || 1)) * 100).toFixed(1)}%)`}
+                        <div style={{ marginTop: '0.3rem', paddingTop: '0.3rem', borderTop: '1px solid #eeeeee', fontWeight: 700, color: diff > 0 ? '#3883e7' : PRIMARY_COLOR }}>
+                          {diff > 0
+                            ? `Over-forecast by +${Math.round(diff).toLocaleString()} MW (${((diff / (fVal || 1)) * 100).toFixed(1)}% shortfall)`
+                            : `Under-forecast by -${Math.abs(Math.round(diff)).toLocaleString()} MW (${((Math.abs(diff) / (fVal || 1)) * 100).toFixed(1)}% surplus)`}
                         </div>
                       )}
                     </div>
@@ -500,7 +535,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                 wrapperStyle={{ paddingBottom: '10px', fontSize: '12px' }}
               />
               <Line
-                type="monotone"
+                type="linear"
                 dataKey="forecastMw"
                 name="Predicted Power"
                 stroke={PRIMARY_COLOR}
@@ -509,7 +544,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                 activeDot={{ r: 5, fill: PRIMARY_COLOR }}
               />
               <Line
-                type="monotone"
+                type="linear"
                 dataKey="actualMw"
                 name="Real Power Delivered"
                 stroke="#555555"
@@ -533,10 +568,10 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
       >
         <div style={{ marginBottom: '1rem' }}>
           <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#000000' }}>
-            {windowMode === 'week' ? 'Trend followed' : 'Trend Followed'}
+            {windowMode === 'week' ? 'Daily Error Trajectory' : 'Daily Error Trajectory'}
           </h3>
           <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#666666' }}>
-            Negative error means actual generation was below predicted generation.
+            Positive error (Forecast − Actual &gt; 0) indicates forecast exceeded generation (shortfall needing backup).
           </p>
         </div>
 
@@ -568,7 +603,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                     strokeDasharray="4 4"
                     strokeWidth={1.5}
                     label={{
-                      value: '0 MW',
+                      value: '0 MW (Zero Error)',
                       position: 'insideTopRight',
                       fill: '#888888',
                       fontSize: 10,
@@ -597,7 +632,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                             {fullLabel}
                           </div>
                           <div style={{ color: '#3883e7', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>● Actual − predicted:</span>
+                            <span>● Forecast Error (Forecast − Actual):</span>
                             <strong>
                               {errVal !== null && errVal !== undefined
                                 ? `${errVal > 0 ? '+' : ''}${errVal.toLocaleString()} MW`
@@ -629,12 +664,12 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                                 borderTop: '1px solid #eeeeee',
                                 fontSize: '11px',
                                 fontWeight: 600,
-                                color: errVal < 0 ? '#3883e7' : PRIMARY_COLOR,
+                                color: errVal > 0 ? '#3883e7' : PRIMARY_COLOR,
                               }}
                             >
-                              {errVal < 0
-                                ? `Actual was ${Math.abs(errVal).toLocaleString()} MW below predicted`
-                                : `Actual was ${errVal.toLocaleString()} MW above predicted`}
+                              {errVal > 0
+                                ? `Forecast was +${Math.abs(errVal).toLocaleString()} MW above actual (shortfall)`
+                                : `Actual was +${Math.abs(errVal).toLocaleString()} MW above forecast (surplus)`}
                             </div>
                           )}
                         </div>
@@ -648,18 +683,18 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
                     wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }}
                   />
                   <Line
-                    type="monotone"
+                    type="linear"
                     dataKey="errorMw"
-                    name="Actual − predicted"
+                    name="Forecast Error (Forecast − Actual)"
                     stroke="#3883e7"
                     strokeWidth={2.5}
                     dot={{ r: 4, fill: '#3883e7' }}
                     activeDot={{ r: 6, fill: '#3883e7' }}
                   />
                   <Line
-                    type="monotone"
+                    type="linear"
                     dataKey="rollingAvgMw"
-                    name="Rolling trend"
+                    name="Rolling 3-Day Trend"
                     stroke={PRIMARY_COLOR}
                     strokeWidth={2.5}
                     dot={{ r: 4, fill: PRIMARY_COLOR }}

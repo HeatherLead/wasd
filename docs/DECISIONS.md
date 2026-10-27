@@ -279,5 +279,44 @@ A walk-forward validation across all 30 evaluatable delivery days in January 202
   - At **90% Coverage**: Under-procurement rate = **7.71%** (111 / 1,440 intervals)
   - At **95% Coverage**: Under-procurement rate = **4.79%** (69 / 1,440 intervals)
 
+---
 
+## Decision 18: Strict D-2 Completed History Termination (Eliminating Look-Ahead Leakage)
+- **Critique & Discovery**: Day-ahead decisions for delivery day $D$ (e.g. Jan 15) are finalized at `09:00 UTC` on day $D-1$ (Jan 14). At that time, actual generation for day $D-1$ (Jan 14) is not yet generated, delivered, or settled. If historical windows include $D-1$, the evaluation suffers from look-ahead leakage.
+- **Decision**: All training, quantile lookbacks, and trailing accuracy windows strictly terminate at **$D-2$** (`max_completed_d = target_d - timedelta(days=2)`):
+  - For Jan 15 delivery: Trailing completed history ends on **Jan 13**.
+  - Trailing 7-day window on Page 1: **7 Jan – 13 Jan** (7 completed days).
+  - Decision Replay lookback window on Page 2: **1 Jan – 13 Jan** (13 completed days).
+- **Audit Verification**: Asserted in unit test suite (`tests/test_uncertainty.py`, `tests/test_day_ahead_api.py`, `tests/test_redesign_backend.py`) and highlighted in UI via prominent Decision-Time Integrity Banners.
 
+---
+
+## Decision 19: Walk-Forward Backtesting Validation (21% MAE Reduction)
+- **Analytical Gap**: Proving that empirical bias adjustment demonstrably outperforms the raw forecast across January 2026, and testing empirical coverage calibration.
+- **Implementation**:
+  - `run_walk_forward_backtest` simulates daily day-ahead decisions across all 29 delivery days with prior history (Jan 3–31), strictly using completed days $\le D-2$.
+  - Compares raw forecast error against bias-adjusted forecast error interval-by-interval.
+- **Empirical January 2026 Walk-Forward Results**:
+  - **Raw Forecast MAE**: **2,040.8 MW**
+  - **Bias-Adjusted Forecast MAE**: **1,611.9 MW**
+  - **MAE Reduction**: **428.9 MW (21.0% error reduction)**
+  - **Days Improved**: **19 of 29 days (65.5%)**
+  - **Raw Mean Bias**: **+1,735.0 MW** (severe overforecasting)
+  - **Bias-Adjusted Residual Bias**: **-97.1 MW** (94.4% systematic bias neutralized)
+  - **Empirical 80% Coverage Band**: **69.5%** realized coverage (reflecting January storm volatility and sample warm-up).
+- **UI Integration**: Detailed interactive backtest ledger and calibration breakdown accessible via "Validate Methodology" modal on Page 2.
+
+---
+
+## Decision 20: Conceptual De-Muddling of Wholesale Procurement: Probability Interval vs Point Estimates
+- **Critique**: The previous "Optimal Buy Range" was conceptually muddled as the gap between two point estimates (raw-forecast need and bias-adjusted need), where the central estimate was the top of the range.
+- **Decision**: Strictly separate Deterministic Point Estimates from Empirical Probability Intervals:
+  1. **Deterministic Point Estimates**:
+     - **Unhedged Raw Need**: $\text{base\_need\_mw} = \max(\text{Demand} - \text{Forecast}, 0)$
+     - **Central Target (Bias-Adjusted)**: $\text{central\_need\_mw} = \max(\text{Demand} - (\text{Forecast} - \text{Bias}), 0)$
+     - **Expected Deficit / Bias Gap**: $\text{bias\_gap\_mw} = \text{central\_need\_mw} - \text{base\_need\_mw}$
+  2. **Empirical 80% Probability Interval**:
+     - Shaded Band: $[\text{low\_need\_mw}, \text{high\_need\_mw}]$ derived from 10th and 90th percentile wind outturns.
+     - The **Central Target sits safely inside** the probability interval, exactly where it belongs.
+  3. **No Artificial Splines**: All Recharts visual elements use linear point-to-point connections (`type="linear"`) instead of spline smoothing (`type="monotone"`), eliminating imaginary intermediate peaks.
+  4. **Metric Disambiguation**: Clear documentation and tooltips explain why bias values differ across contexts: Trailing 7-day (+1,615 MW), 13-day lookback (+1,939 MW), median P50 (+1,529 MW), and low-wind regime (+1,278 MW).

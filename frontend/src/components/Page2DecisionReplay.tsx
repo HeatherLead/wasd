@@ -23,6 +23,7 @@ import {
 import { apiClient } from '../api/client';
 import type { DayAheadScheduleResponse } from '../api/client';
 import { PRIMARY_COLOR, DEFAULT_COVERAGE, PAGE2_CSV_HEADERS } from '../store';
+import { MethodologyValidationSection } from './MethodologyValidationSection';
 
 interface Page2Props {
   selectedDate: string;
@@ -40,15 +41,19 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
   const [error, setError] = useState<string | null>(null);
   const [tableOpen, setTableOpen] = useState<boolean>(false);
 
+  // Shortfall threshold customization
+  const [thresholdPreset, setThresholdPreset] = useState<'mae' | number>('mae');
+
   const fetchDayAhead = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const appliedThreshold = thresholdPreset === 'mae' ? undefined : thresholdPreset;
       const res = await apiClient.getDayAhead(
         selectedDate,
         cutoffTime,
         coverage,
-        undefined,
+        appliedThreshold,
         false,
         28
       );
@@ -59,7 +64,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, cutoffTime, coverage]);
+  }, [selectedDate, cutoffTime, coverage, thresholdPreset]);
 
   useEffect(() => {
     fetchDayAhead();
@@ -207,7 +212,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                   Day-Ahead Wind Forecast & Plausible Actual Range
                 </h2>
                 <div style={{ fontSize: '0.8rem', color: '#666666', marginTop: '0.2rem' }}>
-                  Empirical error quantiles derived strictly from {data.basis_metadata.prior_days_count} prior days' decision-time errors.
+                  Empirical error quantiles derived strictly from {data.basis_metadata.prior_days_count} completed prior days (ending D-2).
                 </div>
               </div>
 
@@ -297,7 +302,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                             </strong>
                           </div>
                           <div style={{ color: '#666666', marginTop: '0.2rem', fontSize: '0.75rem' }}>
-                            Horizon: {d.horizon_hours}h | Basis: {d.basis} ({d.sample_size} samples)
+                            Published: {d.publish_time ? d.publish_time.slice(11, 16) : '—'} UTC | Horizon: {d.horizon_hours}h | Basis: {d.basis} ({d.sample_size} samples)
                           </div>
                         </div>
                       );
@@ -332,7 +337,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                   />
 
                   <Area
-                    type="monotone"
+                    type="linear"
                     dataKey="band_base"
                     stackId="1"
                     fill="transparent"
@@ -340,7 +345,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                     legendType="none"
                   />
                   <Area
-                    type="monotone"
+                    type="linear"
                     dataKey="band_width"
                     stackId="1"
                     fill="rgba(20, 137, 55, 0.16)"
@@ -349,7 +354,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                   />
 
                   <Line
-                    type="monotone"
+                    type="linear"
                     dataKey="actual_low_mw"
                     stroke={PRIMARY_COLOR}
                     strokeWidth={1}
@@ -358,7 +363,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                     legendType="none"
                   />
                   <Line
-                    type="monotone"
+                    type="linear"
                     dataKey="actual_high_mw"
                     stroke={PRIMARY_COLOR}
                     strokeWidth={1}
@@ -368,7 +373,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                   />
 
                   <Line
-                    type="monotone"
+                    type="linear"
                     dataKey="forecast_mw"
                     stroke="#000000"
                     strokeWidth={2.5}
@@ -421,12 +426,12 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                 >
                   <Info size={14} color="#666666" />
                   <span>
-                    Historical Model Bias:{' '}
+                    Historical Model Bias ({data.basis_metadata.prior_days_count} Completed Days 1–{data.basis_metadata.completed_history_end_date?.slice(8) ?? '13'} Jan):{' '}
                     <strong>
                       {actualEstimates.bias >= 0 ? '+' : ''}
                       {Math.round(actualEstimates.bias).toLocaleString()} MW
                     </strong>{' '}
-                    ({actualEstimates.bias >= 0 ? 'over-prediction' : 'under-prediction'})
+                    ({actualEstimates.bias >= 0 ? 'systematic over-forecast' : 'under-forecast'})
                   </span>
                 </div>
               </div>
@@ -522,6 +527,10 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
             </div>
           )}
 
+          {/* Methodology Validation (January Backtest) Section */}
+          <MethodologyValidationSection cutoffTime={cutoffTime} coverage={coverage} />
+
+          {/* Shortfall Risk Concentration with Threshold Selector */}
           <div
             style={{
               border: '1px solid #e0e0e0',
@@ -530,18 +539,58 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
               padding: '1.25rem 1.5rem',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#000000' }}>
                   Shortfall Risk Concentration Across Half-Hours
                 </h3>
                 <span style={{ fontSize: '0.75rem', color: '#666666' }}>
-                  P(Shortfall &gt; {Math.round(data.risk_summary.threshold_mw).toLocaleString()} MW) per target settlement period
+                  P(Shortfall &gt; {Math.round(data.risk_summary.threshold_mw).toLocaleString()} MW) per target settlement period.
+                  {thresholdPreset === 'mae'
+                    ? ` Threshold derived from historical MAE (${Math.round(data.risk_summary.threshold_mw).toLocaleString()} MW) over completed prior days.`
+                    : ` Using custom operational shortfall buffer.`}
                 </span>
               </div>
-              <span style={{ fontSize: '0.75rem', color: '#666666' }}>
-                Threshold: <strong>{Math.round(data.risk_summary.threshold_mw).toLocaleString()} MW (Historical MAE)</strong>
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem' }}>
+                <span style={{ color: '#555555', fontWeight: 600 }}>Threshold:</span>
+                <div style={{ display: 'flex', gap: '3px', backgroundColor: '#f1f3f5', padding: '2px', borderRadius: '5px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setThresholdPreset('mae')}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      borderRadius: '3px',
+                      border: 'none',
+                      backgroundColor: thresholdPreset === 'mae' ? PRIMARY_COLOR : 'transparent',
+                      color: thresholdPreset === 'mae' ? '#ffffff' : '#333333',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Historical MAE
+                  </button>
+                  {[1500, 2000, 2500].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setThresholdPreset(val)}
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        borderRadius: '3px',
+                        border: 'none',
+                        backgroundColor: thresholdPreset === val ? PRIMARY_COLOR : 'transparent',
+                        color: thresholdPreset === val ? '#ffffff' : '#333333',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {val.toLocaleString()} MW
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div style={{ height: '180px', width: '100%' }}>
@@ -573,6 +622,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
             </div>
           </div>
 
+          {/* Interval Table with Revisions and Age */}
           <div style={{ border: '1px solid #e0e0e0', borderRadius: '8px', backgroundColor: '#ffffff', overflow: 'hidden' }}>
             <div
               style={{
@@ -599,7 +649,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                 }}
               >
                 {tableOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                <span>Interval Details </span>
+                <span>Interval Details (Audit Trail & Plausible Ranges)</span>
               </button>
 
               <button
@@ -626,26 +676,35 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
 
             {tableOpen && (
               <div style={{ overflowX: 'auto', borderTop: '1px solid #e0e0e0' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#f5f5f5', textAlign: 'left', borderBottom: '1px solid #d0d0d0' }}>
                       <th style={{ padding: '0.6rem 0.75rem' }}>SP</th>
-                      <th style={{ padding: '0.6rem 0.75rem' }}>Time (UTC)</th>
-                      <th style={{ padding: '0.6rem 0.75rem' }}>Forecast (MW)</th>
-                      <th style={{ padding: '0.6rem 0.75rem' }}>Plausible Low (MW)</th>
-                      <th style={{ padding: '0.6rem 0.75rem' }}>Plausible High (MW)</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Target Time</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Forecast</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Published</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Cutoff Age</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Plausible Low</th>
+                      <th style={{ padding: '0.6rem 0.75rem' }}>Plausible High</th>
                       <th style={{ padding: '0.6rem 0.75rem' }}>P(Shortfall &gt; T)</th>
                       <th style={{ padding: '0.6rem 0.75rem' }}>Lead Time</th>
-                      <th style={{ padding: '0.6rem 0.75rem' }}>Basis</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.intervals.map((it) => (
                       <tr key={it.settlement_period} style={{ borderBottom: '1px solid #eee' }}>
                         <td style={{ padding: '0.55rem 0.75rem', fontWeight: 600 }}>{it.settlement_period}</td>
-                        <td style={{ padding: '0.55rem 0.75rem' }}>{it.start_time?.slice(11, 16)}</td>
+                        <td style={{ padding: '0.55rem 0.75rem' }}>{it.start_time?.slice(11, 16)} UTC</td>
                         <td style={{ padding: '0.55rem 0.75rem', fontWeight: 600 }}>
                           {it.forecast_mw?.toLocaleString()} MW
+                        </td>
+                        <td style={{ padding: '0.55rem 0.75rem', color: '#555555' }}>
+                          {it.publish_time ? it.publish_time.slice(11, 16) + ' UTC' : '—'}
+                        </td>
+                        <td style={{ padding: '0.55rem 0.75rem', color: '#666666' }}>
+                          {it.forecast_age_minutes !== undefined && it.forecast_age_minutes !== null
+                            ? `${it.forecast_age_minutes}m old`
+                            : '—'}
                         </td>
                         <td style={{ padding: '0.55rem 0.75rem', color: PRIMARY_COLOR }}>
                           {it.actual_low_mw?.toLocaleString()} MW
@@ -659,19 +718,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                             : 'N/A'}
                         </td>
                         <td style={{ padding: '0.55rem 0.75rem', color: '#666' }}>{it.horizon_hours}h</td>
-                        <td style={{ padding: '0.55rem 0.75rem' }}>
-                          <span
-                            style={{
-                              padding: '0.1rem 0.35rem',
-                              fontSize: '0.7rem',
-                              borderRadius: '4px',
-                              backgroundColor: it.basis === 'block' ? '#e8f5e9' : '#fff3e0',
-                              color: it.basis === 'block' ? PRIMARY_COLOR : '#e65100',
-                            }}
-                          >
-                            {it.basis} ({it.sample_size})
-                          </span>
-                        </td>
                       </tr>
                     ))}
                   </tbody>

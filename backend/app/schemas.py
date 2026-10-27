@@ -202,6 +202,7 @@ class BuyRangeTotals(BaseModel):
     buffer_total_mwh: Optional[float] = None
     low_need_total_mwh: Optional[float] = None
     central_need_total_mwh: Optional[float] = None
+    bias_gap_total_mwh: Optional[float] = None
     high_need_total_mwh: Optional[float] = None
     peak_high_need_mw: Optional[float] = None
     peak_low_need_mw: Optional[float] = None
@@ -248,27 +249,6 @@ class HealthResponse(BaseModel):
     coverage_window: Dict[str, str]
 
 
-class ForecastRevisionItem(BaseModel):
-    publish_time: str
-    forecast_generation_mw: float
-    horizon_hours: float
-    is_eligible: bool
-    is_decision_forecast: bool
-    error_vs_actual_mw: Optional[float] = None
-
-
-class ForecastRevisionsResponse(BaseModel):
-    target_time: str
-    delivery_date: str
-    cutoff_time: str
-    cutoff_datetime: str
-    actual_generation_mw: Optional[float] = None
-    decision_publish_time: Optional[str] = None
-    decision_forecast_mw: Optional[float] = None
-    total_revisions: int
-    revisions: List[ForecastRevisionItem]
-
-
 class WorstIntervalItem(BaseModel):
     start_time: str
     delivery_date: str
@@ -298,6 +278,7 @@ class WorstIntervalsResponse(BaseModel):
 class DayAheadStatus(BaseModel):
     delivery_date: str
     cutoff_utc: str
+    decision_cutoff_iso: Optional[str] = None
     forecast_publish_range: Dict[str, Optional[str]]
     snapshot_built_at: str
     intervals_expected: int = 48
@@ -333,6 +314,8 @@ class DayAheadBasisMetadata(BaseModel):
     lookback_days: int = 28
     min_block_samples: int = 20
     total_prior_error_samples: int
+    completed_history_start_date: Optional[str] = None
+    completed_history_end_date: Optional[str] = None
 
 
 class DayAheadIntervalItem(BaseModel):
@@ -340,6 +323,7 @@ class DayAheadIntervalItem(BaseModel):
     settlement_period: Optional[int] = None
     forecast_mw: Optional[float] = None
     publish_time: Optional[str] = None
+    forecast_age_minutes: Optional[int] = None
     horizon_hours: Optional[float] = None
     actual_low_mw: Optional[float] = None
     actual_high_mw: Optional[float] = None
@@ -366,6 +350,10 @@ class ValidationDayItem(BaseModel):
     intervals_in_band: int
     realised_coverage: float
     prior_days_used: int
+    raw_mae_mw: Optional[float] = None
+    bias_adjusted_mae_mw: Optional[float] = None
+    mae_reduction_mw: Optional[float] = None
+    is_improved: Optional[bool] = None
 
 
 class CalibrationTableItem(BaseModel):
@@ -380,6 +368,16 @@ class DayAheadValidationResponse(BaseModel):
     total_intervals_evaluated: int
     total_days_evaluated: int
     threshold_mw: float
+    raw_mae_mw: Optional[float] = None
+    bias_adjusted_mae_mw: Optional[float] = None
+    mae_reduction_mw: Optional[float] = None
+    mae_reduction_pct: Optional[float] = None
+    raw_rmse_mw: Optional[float] = None
+    bias_adjusted_rmse_mw: Optional[float] = None
+    raw_bias_mw: Optional[float] = None
+    bias_adjusted_bias_mw: Optional[float] = None
+    days_improved_count: Optional[int] = None
+    days_improved_pct: Optional[float] = None
     days: List[ValidationDayItem]
     calibration_table: List[CalibrationTableItem]
     units: UnitsBlock = Field(default_factory=UnitsBlock)

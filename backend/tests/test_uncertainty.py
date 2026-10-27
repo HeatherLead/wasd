@@ -76,9 +76,9 @@ def test_no_lookahead_strictly_prior_days():
     """
     Verifies that error history for delivery day D never contains data from day D or later.
     """
-    # 3 delivery days: 2026-01-01, 2026-01-02, 2026-01-03
+    # 4 delivery days: 2026-01-01, 2026-01-02, 2026-01-03, 2026-01-04
     records = []
-    for d_str in ["2026-01-01", "2026-01-02", "2026-01-03"]:
+    for d_str in ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"]:
         d_val = datetime.strptime(d_str, "%Y-%m-%d").date()
         for sp in range(1, 49):
             records.append({
@@ -96,16 +96,21 @@ def test_no_lookahead_strictly_prior_days():
     assert hist_day1.empty
     assert len(hist_day1) == 0
 
-    # 2. Day 2: should only have Day 1 (48 samples), no Day 2 or Day 3
+    # 2. Day 2: D-2 has 0 prior days (Day 1 was D-1, which is incomplete at D-1 09:00 decision)
     hist_day2 = build_error_history(df_history, "2026-01-02")
-    assert len(hist_day2) == 48
-    assert set(hist_day2["delivery_date"].unique()) == {date(2026, 1, 1)}
+    assert hist_day2.empty
 
-    # 3. Day 3: should have Day 1 and Day 2 (96 samples), no Day 3
+    # 3. Day 3: should only have Day 1 (48 samples), no Day 2, Day 3, or Day 4
     hist_day3 = build_error_history(df_history, "2026-01-03")
-    assert len(hist_day3) == 96
-    assert set(hist_day3["delivery_date"].unique()) == {date(2026, 1, 1), date(2026, 1, 2)}
-    assert date(2026, 1, 3) not in hist_day3["delivery_date"].values
+    assert len(hist_day3) == 48
+    assert set(hist_day3["delivery_date"].unique()) == {date(2026, 1, 1)}
+
+    # 4. Day 4: should have Day 1 and Day 2 (96 samples), strictly no Day 3 or Day 4
+    hist_day4 = build_error_history(df_history, "2026-01-04")
+    assert len(hist_day4) == 96
+    assert set(hist_day4["delivery_date"].unique()) == {date(2026, 1, 1), date(2026, 1, 2)}
+    assert date(2026, 1, 3) not in hist_day4["delivery_date"].values
+    assert date(2026, 1, 4) not in hist_day4["delivery_date"].values
 
 
 def test_fallback_to_pooled_when_block_under_sample_size():
@@ -264,14 +269,18 @@ def test_walk_forward_backtest_tiny_synthetic_dataset():
         # Day 3
         {"delivery_date": date(2026, 1, 3), "start_time": pd.Timestamp("2026-01-03T00:00:00Z"), "horizon_hours": 17.0, "forecast_generation_mw": 1000.0, "actual_generation_mw": 950.0, "error_mw": 50.0},
         {"delivery_date": date(2026, 1, 3), "start_time": pd.Timestamp("2026-01-03T00:30:00Z"), "horizon_hours": 17.5, "forecast_generation_mw": 1000.0, "actual_generation_mw": 980.0, "error_mw": 20.0},
+        # Day 4
+        {"delivery_date": date(2026, 1, 4), "start_time": pd.Timestamp("2026-01-04T00:00:00Z"), "horizon_hours": 17.0, "forecast_generation_mw": 1000.0, "actual_generation_mw": 950.0, "error_mw": 50.0},
+        {"delivery_date": date(2026, 1, 4), "start_time": pd.Timestamp("2026-01-04T00:30:00Z"), "horizon_hours": 17.5, "forecast_generation_mw": 1000.0, "actual_generation_mw": 980.0, "error_mw": 20.0},
     ]
     df = pd.DataFrame(records)
 
     # Test with 80% coverage
     res = run_walk_forward_backtest(df, coverage=0.80, min_block_samples=100)  # forces pooled
-    assert res["total_days_evaluated"] == 2  # Day 2 and Day 3
+    assert res["total_days_evaluated"] == 2  # Day 3 and Day 4 (Day 1 & Day 2 have no completed D-2 history)
     assert res["total_intervals_evaluated"] == 4
-    # All 4 intervals will be checked against the exact fraction
+    assert res["raw_mae_mw"] is not None
+    assert res["bias_adjusted_mae_mw"] is not None
     assert res["overall_realised_coverage"] is not None
     assert 0.0 <= res["overall_realised_coverage"] <= 1.0
 

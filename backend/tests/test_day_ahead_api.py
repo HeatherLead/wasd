@@ -51,8 +51,8 @@ def test_day_ahead_endpoint_structure(client):
     basis_meta = data["basis_metadata"]
     assert basis_meta["method_name"] == "empirical error quantiles"
     assert basis_meta["coverage"] == 0.80
-    assert basis_meta["prior_days_count"] == 14  # Jan 1 - Jan 14
-    assert basis_meta["total_prior_error_samples"] == 14 * 48
+    assert basis_meta["prior_days_count"] == 13  # Jan 1 - Jan 13 completed prior to D-1 09:00 cutoff
+    assert basis_meta["total_prior_error_samples"] == 13 * 48
 
     # 4. Intervals
     intervals = data["intervals"]
@@ -89,14 +89,14 @@ def test_day_ahead_include_actual_reveal_toggle(client):
 
 def test_day_ahead_early_january_low_sample_flag(client):
     """
-    Verifies that early January delivery days (e.g. 2026-01-02) are flagged as low sample.
+    Verifies that early January delivery days (e.g. 2026-01-03) are flagged as low sample.
     """
-    response = client.get("/api/day-ahead?date=2026-01-02&cutoff=09:00&coverage=0.8")
+    response = client.get("/api/day-ahead?date=2026-01-03&cutoff=09:00&coverage=0.8")
     assert response.status_code == 200
     data = response.json()
 
     assert data["status"]["is_low_sample"] is True
-    assert data["basis_metadata"]["prior_days_count"] == 1
+    assert data["basis_metadata"]["prior_days_count"] == 1  # Jan 1 is completed prior to Jan 3 decision
     # Because only 1 prior day exists (1 * 12 = 12 samples per block < 20 min_block_samples),
     # intervals fall back to pooled
     assert data["intervals"][0]["basis"] == "pooled"
@@ -127,9 +127,13 @@ def test_day_ahead_validation_endpoint(client):
     assert data["target_coverage"] == 0.80
     assert data["overall_realised_coverage"] is not None
     assert 0.0 <= data["overall_realised_coverage"] <= 1.0
-    assert data["total_days_evaluated"] == 30  # Jan 2 to Jan 31
-    assert data["total_intervals_evaluated"] == 30 * 48
-    assert len(data["days"]) == 30
+    assert data["total_days_evaluated"] == 29  # Jan 3 to Jan 31 (Jan 1 & 2 have no completed prior days in Jan)
+    assert data["total_intervals_evaluated"] == 29 * 48
+    assert len(data["days"]) == 29
+    assert data["raw_mae_mw"] is not None
+    assert data["bias_adjusted_mae_mw"] is not None
+    assert data["mae_reduction_mw"] is not None
+    assert data["mae_reduction_pct"] > 0.0  # Bias correction beats raw forecast!
 
     # Calibration table exists and has bins
     cal_table = data["calibration_table"]

@@ -220,15 +220,15 @@ def test_buy_range_no_lookahead_guarantee(client):
     assert res15.status_code == 200
     d15 = res15.json()
     assert d15["basis"] == "prior_days"
-    assert d15["prior_days_count"] == 14
-    assert "Based on 14 days" in d15["note"]
+    assert d15["prior_days_count"] == 13
+    assert "Based on 13 completed days" in d15["note"]
 
     # 2. Day with < 7 prior days
     res3 = client.get("/api/buy-range?date=2026-01-03&demand_mw=12000&cutoff_time=09:00")
     assert res3.status_code == 200
     d3 = res3.json()
     assert d3["basis"] == "in_sample"
-    assert d3["prior_days_count"] == 2
+    assert d3["prior_days_count"] == 1
     assert "In-sample estimate" in d3["note"]
 
 

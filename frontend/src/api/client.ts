@@ -173,18 +173,25 @@ export interface BuyRangeIntervalItem {
   settlement_period: number | null;
   forecast_mw: number | null;
   forecast_generation_mw: number | null;
+  actual_low_mw?: number | null;
   base_need_mw: number | null;
+  recommended_need_mw?: number | null;
+  buffer_mw?: number | null;
   low_need_mw: number | null;
   central_need_mw: number | null;
   high_need_mw: number | null;
+  bias_gap_mw?: number | null;
 }
 
 export interface BuyRangeTotals {
   forecast_total_mwh: number | null;
   demand_total_mwh: number | null;
   base_need_total_mwh: number | null;
+  recommended_need_total_mwh?: number | null;
+  buffer_total_mwh?: number | null;
   low_need_total_mwh: number | null;
   central_need_total_mwh: number | null;
+  bias_gap_total_mwh?: number | null;
   high_need_total_mwh: number | null;
   peak_high_need_mw: number | null;
   peak_low_need_mw: number | null;
@@ -201,6 +208,7 @@ export interface BuyRangeResponse {
   delivery_date: string;
   cutoff_time: string;
   demand_mw: number | null;
+  coverage?: number;
   basis: 'prior_days' | 'in_sample';
   prior_days_count: number;
   note: string;
@@ -209,6 +217,15 @@ export interface BuyRangeResponse {
   shortfall_energy_mwh: number | null;
   totals: BuyRangeTotals | null;
   intervals: BuyRangeIntervalItem[];
+  backtest?: {
+    underprocurement_share: number;
+    underprocurement_pct: number;
+    days_evaluated: number;
+    intervals_evaluated: number;
+    intervals_short: number;
+    coverage: number;
+    note: string;
+  };
 }
 
 export interface HealthResponse {
@@ -221,27 +238,6 @@ export interface HealthResponse {
     end: string;
     target_month: string;
   };
-}
-
-export interface ForecastRevisionItem {
-  publish_time: string;
-  forecast_generation_mw: number;
-  horizon_hours: number;
-  is_eligible: boolean;
-  is_decision_forecast: boolean;
-  error_vs_actual_mw: number | null;
-}
-
-export interface ForecastRevisionsResponse {
-  target_time: string;
-  delivery_date: string;
-  cutoff_time: string;
-  cutoff_datetime: string;
-  actual_generation_mw: number | null;
-  decision_publish_time: string | null;
-  decision_forecast_mw: number | null;
-  total_revisions: number;
-  revisions: ForecastRevisionItem[];
 }
 
 export interface WorstIntervalItem {
@@ -330,12 +326,6 @@ export const apiClient = {
       end_date: endDate,
     }),
 
-  getRevisions: (targetTime: string, cutoffTime = '09:00') =>
-    fetchJson<ForecastRevisionsResponse>(`${BASE_URL}/revisions`, {
-      target_time: targetTime,
-      cutoff_time: cutoffTime,
-    }),
-
   getWorstIntervals: (cutoffTime = '09:00', startDate?: string, endDate?: string, topN = 5) =>
     fetchJson<WorstIntervalsResponse>(`${BASE_URL}/worst-intervals`, {
       cutoff_time: cutoffTime,
@@ -385,6 +375,7 @@ export const apiClient = {
 export interface DayAheadStatus {
   delivery_date: string;
   cutoff_utc: string;
+  decision_cutoff_iso?: string;
   forecast_publish_range: {
     earliest: string | null;
     latest: string | null;
@@ -423,6 +414,8 @@ export interface DayAheadBasisMetadata {
   lookback_days: number;
   min_block_samples: number;
   total_prior_error_samples: number;
+  completed_history_start_date?: string;
+  completed_history_end_date?: string;
 }
 
 export interface DayAheadIntervalItem {
@@ -430,6 +423,7 @@ export interface DayAheadIntervalItem {
   settlement_period: number | null;
   forecast_mw: number | null;
   publish_time: string | null;
+  forecast_age_minutes?: number | null;
   horizon_hours: number | null;
   actual_low_mw: number | null;
   actual_high_mw: number | null;
@@ -456,6 +450,10 @@ export interface ValidationDayItem {
   intervals_in_band: number;
   realised_coverage: number;
   prior_days_used: number;
+  raw_mae_mw?: number | null;
+  bias_adjusted_mae_mw?: number | null;
+  mae_reduction_mw?: number | null;
+  is_improved?: boolean | null;
 }
 
 export interface CalibrationTableItem {
@@ -470,6 +468,16 @@ export interface DayAheadValidationResponse {
   total_intervals_evaluated: number;
   total_days_evaluated: number;
   threshold_mw: number;
+  raw_mae_mw?: number | null;
+  bias_adjusted_mae_mw?: number | null;
+  mae_reduction_mw?: number | null;
+  mae_reduction_pct?: number | null;
+  raw_rmse_mw?: number | null;
+  bias_adjusted_rmse_mw?: number | null;
+  raw_bias_mw?: number | null;
+  bias_adjusted_bias_mw?: number | null;
+  days_improved_count?: number | null;
+  days_improved_pct?: number | null;
   days: ValidationDayItem[];
   calibration_table: CalibrationTableItem[];
   units: UnitsBlock;

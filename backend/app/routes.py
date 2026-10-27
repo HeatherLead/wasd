@@ -16,7 +16,6 @@ from app.schemas import (
     DayDetailResponse,
     AccuracyResponse,
     HealthResponse,
-    ForecastRevisionsResponse,
     WorstIntervalsResponse,
     BuyRangeResponse,
     DayAheadScheduleResponse,
@@ -174,26 +173,6 @@ def get_accuracy(
         return AccuracyResponse(**breakdowns)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error computing accuracy breakdowns: {str(e)}")
-
-
-@router.get("/revisions", response_model=ForecastRevisionsResponse, summary="Forecast Evolution Across Successive Runs")
-def get_revisions(
-    target_time: str = Query(..., description="Target interval timestamp (ISO-8601 UTC, e.g. 2026-01-01T12:00:00Z)"),
-    cutoff_time: str = Query("09:00", description="Cutoff time on D-1 in UTC (format HH:MM)", pattern=CUTOFF_REGEX),
-) -> ForecastRevisionsResponse:
-    """
-    Returns the historical revision trajectory for a specific target interval.
-    Shows every published forecast from 48h ahead down to intraday, marking the
-    exact forecast that was locked in at the D-1 decision cutoff versus actual outturn.
-    """
-    cutoff = validate_cutoff(cutoff_time)
-    try:
-        revisions_data = data_store.get_forecast_revisions(target_time=target_time, cutoff_time=cutoff)
-        return ForecastRevisionsResponse(**revisions_data)
-    except ValueError as ve:
-        raise HTTPException(status_code=404, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error retrieving forecast revisions: {str(e)}")
 
 
 @router.get("/worst-intervals", response_model=WorstIntervalsResponse, summary="Ranked Largest-Error Intervals")

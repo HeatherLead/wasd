@@ -11,7 +11,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { apiClient, type BuyRangeResponse } from '../api/client';
-import { ShieldAlert, Zap, CheckCircle } from 'lucide-react';
+import { Zap, CheckCircle } from 'lucide-react';
 import {
   PRIMARY_COLOR,
   PRIMARY_COLOR_AREA,
@@ -88,35 +88,31 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
       const timeLabel = item.start_time.slice(11, 16);
       const base = item.base_need_mw ?? 0;
       const central = item.central_need_mw ?? 0;
-      const optLow = Math.min(base, central);
-      const optHigh = Math.max(base, central);
+      const lowNeed = item.low_need_mw ?? 0;
       const highNeed = item.high_need_mw ?? 0;
+      const biasGap = item.bias_gap_mw ?? Math.max(0, central - base);
+      const buffer = item.buffer_mw ?? Math.max(0, highNeed - base);
       return {
         time: timeLabel,
         period: item.settlement_period,
         forecastMw: item.forecast_mw ?? 0,
         baseNeedMw: base,
         centralNeedMw: central,
-        optLowNeedMw: optLow,
-        optHighNeedMw: optHigh,
+        lowNeedMw: lowNeed,
         highNeedMw: highNeed,
-        lowNeedMw: item.low_need_mw ?? 0,
-        rangeBand: [optLow, optHigh],
+        biasGapMw: biasGap,
+        bufferMw: buffer,
+        // True empirical probability interval spanning 80% confidence (P10 to P90 wind outturn)
+        rangeBand: [lowNeed, highNeed],
       };
     });
   }, [data]);
 
   const baseMwh = totals?.base_need_total_mwh ?? 0;
   const centralMwh = totals?.central_need_total_mwh ?? 0;
-  const optimalLowMwh = Math.min(baseMwh, centralMwh);
-  const optimalHighMwh = Math.max(baseMwh, centralMwh);
-
-  const peakForecast = data?.intervals && data.intervals.length > 0 ? Math.max(0, ...data.intervals.map((it) => it.base_need_mw ?? 0)) : 0;
-  const peakEstimated = data?.intervals && data.intervals.length > 0 ? Math.max(0, ...data.intervals.map((it) => it.central_need_mw ?? 0)) : 0;
-  const optimalPeakLow = Math.min(peakForecast, peakEstimated);
-  const optimalPeakHigh = Math.max(peakForecast, peakEstimated);
-  const optimalPeakSpread = Math.max(0, optimalPeakHigh - optimalPeakLow);
-  const severeDownsideMwh = totals?.high_need_total_mwh ?? 0;
+  const lowNeedMwh = totals?.low_need_total_mwh ?? 0;
+  const highNeedMwh = totals?.high_need_total_mwh ?? totals?.recommended_need_total_mwh ?? 0;
+  const biasGapMwh = totals?.bias_gap_total_mwh ?? Math.max(0, centralMwh - baseMwh);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -309,47 +305,46 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
         </div>
       )}
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.85rem' }}>
         <div style={{ background: '#ffffff', border: `1.5px solid ${PRIMARY_COLOR}`, borderRadius: '8px', padding: '1.1rem 1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: PRIMARY_COLOR, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-              Daily Wholesale Energy (Optimal)
+              Central Target (Bias-Adjusted)
             </span>
             <CheckCircle size={15} color={PRIMARY_COLOR} />
           </div>
           <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#000000', margin: '0.25rem 0' }}>
-            {Math.round(optimalLowMwh).toLocaleString()} – {Math.round(optimalHighMwh).toLocaleString()}{' '}
+            {Math.round(centralMwh).toLocaleString()}{' '}
             <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>MWh</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: '#555555' }}>
-            Central expectation: <strong>{Math.round(centralMwh).toLocaleString()} MWh</strong>
+            Hedging buffer: <strong>+{Math.round(biasGapMwh).toLocaleString()} MWh</strong> over raw forecast
           </div>
         </div>
 
         <div style={{ background: '#ffffff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '1.1rem 1.25rem' }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-            Peak Power Need (Optimal)
+            80% Probability Interval
           </div>
           <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#000000', margin: '0.25rem 0' }}>
-            {Math.round(optimalPeakLow).toLocaleString()} – {Math.round(optimalPeakHigh).toLocaleString()}{' '}
-            <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>MW</span>
+            {Math.round(lowNeedMwh).toLocaleString()} – {Math.round(highNeedMwh).toLocaleString()}{' '}
+            <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>MWh</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: '#555555' }}>
-            Peak spread: <strong>{Math.round(optimalPeakSpread).toLocaleString()} MW</strong>
+            Confidence band spanning <strong>P10 to P90</strong> wind outturn
           </div>
         </div>
 
         <div style={{ background: '#ffffff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '1.1rem 1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-            <ShieldAlert size={14} color="#d32f2f" />
-            <span>Downside Risk Ceiling</span>
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            Unhedged Raw Need
           </div>
-          <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#000000', margin: '0.25rem 0' }}>
-            {Math.round(severeDownsideMwh).toLocaleString()}{' '}
+          <div style={{ fontSize: '1.45rem', fontWeight: 700, color: '#64748b', margin: '0.25rem 0' }}>
+            {Math.round(baseMwh).toLocaleString()}{' '}
             <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>MWh</span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#555555' }}>
-            Severe shortfall protection (P90)
+          <div style={{ fontSize: '0.75rem', color: '#b45309' }}>
+            Leaves <strong>{Math.round(biasGapMwh).toLocaleString()} MWh</strong> unhedged deficit
           </div>
         </div>
       </section>
@@ -361,7 +356,7 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
               Wholesale Power Procurement Schedule
             </h3>
             <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#666666' }}>
-              Required purchase band to fulfill {effectiveDemand.toLocaleString()} MW demand across each half-hour.
+              Empirical 80% procurement probability interval [P10–P90 wind] and central hedging target to fulfill {effectiveDemand.toLocaleString()} MW demand across each half-hour.
             </p>
           </div>
 
@@ -400,10 +395,11 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                     if (!active || !payload || !payload.length) return null;
                     const d = payload[0]?.payload;
                     if (!d) return null;
-                    const optLow = d.optLowNeedMw ?? Math.min(d.baseNeedMw ?? 0, d.centralNeedMw ?? 0);
-                    const optHigh = d.optHighNeedMw ?? Math.max(d.baseNeedMw ?? 0, d.centralNeedMw ?? 0);
+                    const low = d.lowNeedMw ?? 0;
+                    const high = d.highNeedMw ?? 0;
                     const central = d.centralNeedMw ?? 0;
                     const base = d.baseNeedMw ?? 0;
+                    const biasGap = d.biasGapMw ?? Math.max(0, central - base);
                     return (
                       <div
                         style={{
@@ -416,16 +412,19 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                         }}
                       >
                         <div style={{ fontWeight: 700, marginBottom: '0.35rem', borderBottom: '1px solid #eee', paddingBottom: '0.25rem' }}>
-                          {formatDate(selectedDate)} @ {label} UTC
+                          {formatDate(selectedDate)} @ {label} UTC (SP {d.period ?? '—'})
                         </div>
                         <div style={{ color: PRIMARY_COLOR, fontWeight: 700 }}>
-                          Optimal Buy Range: {Math.round(optLow).toLocaleString()} – {Math.round(optHigh).toLocaleString()} MW
+                          Central Hedging Target: {Math.round(central).toLocaleString()} MW
                         </div>
-                        <div style={{ color: '#222222', marginTop: '0.2rem' }}>
-                          Estimated Actual Need: <strong>{Math.round(central).toLocaleString()} MW</strong>
+                        <div style={{ color: '#0969da', marginTop: '0.2rem' }}>
+                          80% Probability Band: <strong>{Math.round(low).toLocaleString()} – {Math.round(high).toLocaleString()} MW</strong>
                         </div>
-                        <div style={{ color: '#666666', marginTop: '0.15rem' }}>
-                          Forecast Baseline Need: {Math.round(base).toLocaleString()} MW
+                        <div style={{ color: '#64748b', marginTop: '0.15rem' }}>
+                          Unhedged Raw Need: {Math.round(base).toLocaleString()} MW
+                        </div>
+                        <div style={{ color: '#b45309', marginTop: '0.25rem', paddingTop: '0.25rem', borderTop: '1px solid #f1f5f9', fontSize: '11px' }}>
+                          Hedging Buffer vs Raw: +{Math.round(biasGap).toLocaleString()} MW
                         </div>
                       </div>
                     );
@@ -448,44 +447,44 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                             borderRadius: '3px',
                           }}
                         />
-                        <span style={{ color: '#111111', fontWeight: 600 }}>Optimal Buy Range (Forecast vs Estimated)</span>
+                        <span style={{ color: '#111111', fontWeight: 600 }}>80% Probability Interval (P10–P90 Wind)</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ width: '18px', height: '3px', backgroundColor: PRIMARY_COLOR, display: 'inline-block' }} />
-                        <span style={{ color: '#111111', fontWeight: 600 }}>Estimated Need (Central)</span>
+                        <span style={{ color: '#111111', fontWeight: 600 }}>Central Target (Bias-Adjusted)</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ width: '18px', height: '2px', borderTop: '2px dashed #666666', display: 'inline-block' }} />
-                        <span style={{ color: '#666666', fontWeight: 600 }}>Forecast Baseline Need</span>
+                        <span style={{ width: '18px', height: '2px', borderTop: '2px dashed #64748b', display: 'inline-block' }} />
+                        <span style={{ color: '#64748b', fontWeight: 600 }}>Unhedged Raw Need</span>
                       </div>
                     </div>
                   )}
                 />
 
                 <Area
-                  type="monotone"
+                  type="linear"
                   dataKey="rangeBand"
                   stroke={PRIMARY_COLOR}
                   strokeOpacity={0.6}
                   fill={PRIMARY_COLOR_AREA}
                   fillOpacity={1}
-                  name="Optimal Buy Range"
+                  name="80% Probability Band"
                 />
 
                 <Line
-                  type="monotone"
+                  type="linear"
                   dataKey="centralNeedMw"
-                  name="Estimated Need"
+                  name="Central Target"
                   stroke={PRIMARY_COLOR}
                   strokeWidth={2.5}
                   dot={false}
                 />
 
                 <Line
-                  type="monotone"
+                  type="linear"
                   dataKey="baseNeedMw"
-                  name="Forecast Baseline"
-                  stroke="#555555"
+                  name="Unhedged Raw Need"
+                  stroke="#64748b"
                   strokeWidth={1.5}
                   strokeDasharray="4 2"
                   dot={false}
@@ -497,7 +496,7 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
 
         <div
           style={{
-            marginTop: '1.25rem',
+            marginTop: '0.85rem',
             paddingTop: '0.85rem',
             borderTop: '1px solid #f0f0f0',
             display: 'flex',
@@ -508,13 +507,14 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
             fontSize: '0.75rem',
           }}
         >
+
           {quantiles && (
             <div style={{ display: 'flex', gap: '1rem', color: '#444444' }}>
               <span>
                 P10 Wind Error: <strong>{quantiles.p10_error_mw > 0 ? `+${quantiles.p10_error_mw}` : quantiles.p10_error_mw} MW</strong>
               </span>
               <span>
-                P50 Wind Error: <strong>{quantiles.p50_error_mw > 0 ? `+${quantiles.p50_error_mw}` : quantiles.p50_error_mw} MW</strong>
+                P50 Wind Error (Median): <strong>{quantiles.p50_error_mw > 0 ? `+${quantiles.p50_error_mw}` : quantiles.p50_error_mw} MW</strong>
               </span>
               <span>
                 P90 Wind Error: <strong>+{quantiles.p90_error_mw} MW</strong>
