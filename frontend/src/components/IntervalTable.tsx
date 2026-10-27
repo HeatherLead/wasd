@@ -1,13 +1,8 @@
-/**
- * frontend/src/components/IntervalTable.tsx
- * Redesigned Collapsible Audit Table with open/close toggle, search filtering, sorting, and CSV export.
- */
-
 import React, { useState, useMemo } from 'react';
 import { ArrowUpDown, Download, Search, ChevronDown, ChevronRight } from 'lucide-react';
 import type { IntervalDetailItem } from '../api/client';
 import { formatDate } from '../utils/date';
-import { PRIMARY_COLOR } from '../theme';
+import { PRIMARY_COLOR } from '../store';
 
 interface IntervalTableProps {
   intervals: IntervalDetailItem[];
@@ -117,7 +112,6 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
         overflow: 'hidden',
       }}
     >
-      {/* 1. Header with Chevron Toggle & Export CSV matching Page 2 */}
       <div
         style={{
           display: 'flex',
@@ -169,10 +163,8 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
         </button>
       </div>
 
-      {/* 2. Expanded Table Section */}
       {isOpen && (
         <div style={{ borderTop: '1px solid #e0e0e0' }}>
-          {/* Controls: Filter search */}
           <div
             style={{
               display: 'flex',
@@ -209,7 +201,6 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
             )}
           </div>
 
-          {/* Table matching Page 2 style */}
           <div style={{ maxHeight: '480px', overflowY: 'auto', overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
               <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f5f5f5', zIndex: 2 }}>

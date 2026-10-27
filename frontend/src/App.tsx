@@ -1,16 +1,3 @@
-/**
- * frontend/src/App.tsx
- * Wind Forecast Accuracy Portal - Redesigned as a Simple 3-Page Decision Tool.
- *
- * Core Principle - Answers three questions, one per page:
- * 1. "How accurate are the wind forecasts the trader actually saw?" (Page 1: Accuracy)
- * 2. "What would the trader have seen for a given delivery day?" (Page 2: Decision Replay)
- * 3. "What does that mean for what we buy?" (Page 3: Buy Range)
- *
- * Secondary details (interval table, revisions, largest errors, audit) moved to a collapsed section.
- * Styling: White background, black typography, zero gradients strictly enforced.
- */
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiClient } from './api/client';
 import type {
@@ -22,7 +9,13 @@ import type {
 import { Page1Accuracy } from './components/Page1Accuracy';
 import { Page2DecisionReplay } from './components/Page2DecisionReplay';
 import { Page3BuyRange } from './components/Page3BuyRange';
-import { PRIMARY_COLOR } from './theme';
+import {
+  PRIMARY_COLOR,
+  DEFAULT_PAGE,
+  DEFAULT_CUTOFF_TIME,
+  DEFAULT_SELECTED_DATE,
+  DEFAULT_DEMAND_MW,
+} from './store';
 import {
   BarChart2,
   Clock,
@@ -34,25 +27,20 @@ import {
 type PageId = 'accuracy' | 'replay' | 'buy-range';
 
 export const App: React.FC = () => {
-  const [activePage, setActivePage] = useState<PageId>('accuracy');
+  const [activePage, setActivePage] = useState<PageId>(DEFAULT_PAGE);
+  const cutoffTime = DEFAULT_CUTOFF_TIME;
+  const [selectedDate, setSelectedDate] = useState<string>(DEFAULT_SELECTED_DATE);
+  const [demandMw, setDemandMw] = useState<number | null>(DEFAULT_DEMAND_MW);
 
-  // Shared Global States
-  const cutoffTime = '09:00';
-  const [selectedDate, setSelectedDate] = useState<string>('2026-01-15');
-  const [demandMw, setDemandMw] = useState<number | null>(12000);
-
-  // API Data States
   const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null);
   const [daysList, setDaysList] = useState<DaySummaryItem[]>([]);
   const [accuracyData, setAccuracyData] = useState<AccuracyResponse | null>(null);
   const [dayDetail, setDayDetail] = useState<DayDetailResponse | null>(null);
 
-  // Loading and Error States
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingDayDetail, setLoadingDayDetail] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 1. Fetch Global Data (Summary, Days list, Accuracy breakdowns) when cutoff changes
   const fetchGlobalData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -75,7 +63,6 @@ export const App: React.FC = () => {
     }
   }, [cutoffTime]);
 
-  // 2. Fetch Day Detail whenever selectedDate or cutoffTime changes
   const fetchDayDetail = useCallback(async () => {
     setLoadingDayDetail(true);
     try {
@@ -98,7 +85,6 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-container" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', color: '#000000' }}>
-      {/* 3-Page Decision Tabs */}
       <header
         style={{
           borderBottom: '1px solid #e0e0e0',
@@ -111,7 +97,6 @@ export const App: React.FC = () => {
       >
         <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
           <nav style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {/* Page 1 Button */}
             <button
               type="button"
               onClick={() => setActivePage('accuracy')}
@@ -136,7 +121,6 @@ export const App: React.FC = () => {
               </div>
             </button>
 
-            {/* Page 2 Button */}
             <button
               type="button"
               onClick={() => setActivePage('replay')}
@@ -161,7 +145,6 @@ export const App: React.FC = () => {
               </div>
             </button>
 
-            {/* Page 3 Button */}
             <button
               type="button"
               onClick={() => setActivePage('buy-range')}
@@ -189,7 +172,6 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Page Content */}
       <main style={{ flex: 1, padding: '1rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
         {error && (
           <div style={{ padding: '1rem', backgroundColor: '#fff', border: '2px solid #d32f2f', borderRadius: '8px', color: '#d32f2f', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -198,7 +180,6 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Global Simulation Day Selector (Pages 1 & 2 only, hidden on Page 3) */}
         {activePage !== 'buy-range' && (
           <section
             style={{
@@ -250,7 +231,7 @@ export const App: React.FC = () => {
                   fontSize: '13px',
                   fontWeight: 700,
                   borderRadius: '6px',
-                  border: `1.5px solid ${PRIMARY_COLOR}`,
+                  border: `1.5px solid white`,
                   backgroundColor: '#ffffff',
                   color: '#000000',
                   cursor: 'pointer',
@@ -277,7 +258,6 @@ export const App: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Page 1: Accuracy */}
             {activePage === 'accuracy' && (
               <Page1Accuracy
                 summary={summaryData}
@@ -293,7 +273,6 @@ export const App: React.FC = () => {
               />
             )}
 
-            {/* Page 2: Decision Replay (Day-Ahead Wind Forecast & Uncertainty) */}
             {activePage === 'replay' && (
               <Page2DecisionReplay
                 selectedDate={selectedDate}
@@ -302,7 +281,6 @@ export const App: React.FC = () => {
               />
             )}
 
-            {/* Page 3: Buy Range (The Recommendation) */}
             {activePage === 'buy-range' && (
               <Page3BuyRange
                 selectedDate={selectedDate}
@@ -320,4 +298,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-

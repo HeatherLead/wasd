@@ -1,18 +1,3 @@
-/**
- * frontend/src/components/Page2DecisionReplay.tsx
- * Page 2: Day-Ahead Wind Forecast and Downside Risk (Decision Replay)
- *
- * Core Question:
- * "For delivery day D, what wind forecast was available at the decision cutoff,
- *  how far could actual wind plausibly differ from it, and where is the downside risk?"
- *
- * Rules:
- * - Wind supply uncertainty ONLY (no demand or buy quantities).
- * - Strictly empirical error quantiles from prior days (no ML, no look-ahead).
- * - Clean, calm, fast layout: status strip, main forecast & plausible percentile range chart,
- *   half-hourly shortfall risk concentration chart, and interval details with CSV export.
- */
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ResponsiveContainer,
@@ -37,7 +22,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { DayAheadScheduleResponse } from '../api/client';
-import { PRIMARY_COLOR } from '../theme';
+import { PRIMARY_COLOR, DEFAULT_COVERAGE, PAGE2_CSV_HEADERS } from '../store';
 
 interface Page2Props {
   selectedDate: string;
@@ -49,18 +34,12 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
   selectedDate,
   cutoffTime,
 }) => {
-  // Page 2 State
-  const [coverage, setCoverage] = useState<number>(0.80);
-
-  // API Data
+  const [coverage, setCoverage] = useState<number>(DEFAULT_COVERAGE);
   const [data, setData] = useState<DayAheadScheduleResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Collapsed interval table
   const [tableOpen, setTableOpen] = useState<boolean>(false);
 
-  // Fetch Day-Ahead Data (strictly prior days history)
   const fetchDayAhead = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -86,20 +65,8 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
     fetchDayAhead();
   }, [fetchDayAhead]);
 
-  // CSV Export
   const handleExportCSV = () => {
     if (!data || !data.intervals.length) return;
-    const headers = [
-      'Settlement Period',
-      'Start Time (UTC)',
-      'Forecast (MW)',
-      'Actual Low (MW)',
-      'Actual High (MW)',
-      'Shortfall Prob P(error > T)',
-      'Horizon (hours)',
-      'Basis',
-      'Sample Size',
-    ];
 
     const rows = data.intervals.map((it) => [
       it.settlement_period ?? '',
@@ -115,7 +82,7 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
 
     const csvContent =
       'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      [PAGE2_CSV_HEADERS.join(','), ...rows.map((r) => r.join(','))].join('\n');
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
@@ -126,7 +93,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
     document.body.removeChild(link);
   };
 
-  // Expected actual calculations based on historical bias and intraday trends
   const actualEstimates = useMemo(() => {
     if (!data || !data.intervals.length) return null;
     const validIntervals = data.intervals.filter((it) => it.forecast_mw !== null);
@@ -137,10 +103,8 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
     const avgHigh = validIntervals.reduce((acc, it) => acc + (it.actual_high_mw || 0), 0) / validIntervals.length;
 
     const bias = data.risk_summary.expected_bias_mw ?? 0;
-    // Bias-adjusted expected actual: Forecast - Historical Bias
     const expectedActual = Math.max(0, avgForecast - bias);
 
-    // Peak & trough intervals
     let peakIt = validIntervals[0];
     let troughIt = validIntervals[0];
     for (const it of validIntervals) {
@@ -148,7 +112,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
       if ((it.forecast_mw ?? 0) < (troughIt.forecast_mw ?? 0)) troughIt = it;
     }
 
-    // Trend trajectory (overnight vs afternoon/evening)
     const firstQuarterAvg = validIntervals.slice(0, 12).reduce((acc, it) => acc + (it.forecast_mw || 0), 0) / 12;
     const lastQuarterAvg = validIntervals.slice(-12).reduce((acc, it) => acc + (it.forecast_mw || 0), 0) / 12;
     const diff = lastQuarterAvg - firstQuarterAvg;
@@ -185,7 +148,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
     };
   }, [data]);
 
-  // Chart data preparation
   const chartData = useMemo(() => {
     if (!data) return [];
     return data.intervals.map((it) => {
@@ -217,15 +179,12 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
-
-      {/* ERROR BANNER */}
       {error && (
         <div style={{ padding: '1rem', border: '1px solid #d32f2f', borderRadius: '8px', backgroundColor: '#ffebee', color: '#d32f2f' }}>
           {error}
         </div>
       )}
 
-      {/* LOADING STATE */}
       {loading && !data && (
         <div style={{ padding: '4rem', textAlign: 'center', color: '#666666', border: '1px solid #e0e0e0', borderRadius: '8px' }}>
           Evaluating empirical error quantiles and downside risk...
@@ -234,7 +193,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
 
       {data && (
         <>
-          {/* 2. MAIN CHART: FORECAST WIND & PLAUSIBLE ACTUAL BAND */}
           <div
             style={{
               border: '1px solid #e0e0e0',
@@ -253,7 +211,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                 </div>
               </div>
 
-              {/* Chart Controls: Coverage Toggle (80th vs 90th Percentile) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: '4px', backgroundColor: '#f1f3f5', padding: '3px', borderRadius: '6px' }}>
                   <button
@@ -294,7 +251,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
               </div>
             </div>
 
-            {/* Main Recharts Area */}
             <div style={{ height: '380px', width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 15, right: 25, bottom: 25, left: 15 }}>
@@ -375,7 +331,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                     )}
                   />
 
-                  {/* Shaded Empirical Quantile Range */}
                   <Area
                     type="monotone"
                     dataKey="band_base"
@@ -393,7 +348,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                     name={`Plausible Actual Range (${Math.round(coverage * 100)}th percentile empirical)`}
                   />
 
-                  {/* Quantile Boundary Dashes */}
                   <Line
                     type="monotone"
                     dataKey="actual_low_mw"
@@ -413,7 +367,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                     legendType="none"
                   />
 
-                  {/* Central Line: Forecast Wind */}
                   <Line
                     type="monotone"
                     dataKey="forecast_mw"
@@ -427,7 +380,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
             </div>
           </div>
 
-          {/* EXPECTED ACTUAL VALUE & TREND ASSESSMENT CARD */}
           {actualEstimates && (
             <div
               style={{
@@ -437,7 +389,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                 padding: '1.25rem 1.5rem',
               }}
             >
-              {/* Card Header */}
               <div
                 style={{
                   display: 'flex',
@@ -480,7 +431,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                 </div>
               </div>
 
-              {/* 3-Column Metric Grid */}
               <div
                 style={{
                   display: 'grid',
@@ -489,7 +439,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                   marginBottom: '1rem',
                 }}
               >
-                {/* 1. Raw Forecast Baseline */}
                 <div style={{ border: '1px solid #e0e0e0', borderRadius: '6px', padding: '1rem', backgroundColor: '#fafafa' }}>
                   <div style={{ fontSize: '0.75rem', color: '#666666', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>
                     Published Forecast
@@ -502,7 +451,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                   </div>
                 </div>
 
-                {/* 2. Expected Actual Value (Bias-Adjusted) - Minimum text, clean and simple */}
                 <div
                   style={{
                     border: `1.5px solid ${PRIMARY_COLOR}`,
@@ -527,7 +475,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                   </div>
                 </div>
 
-                {/* 3. Plausible Actual Range */}
                 <div style={{ border: '1px solid #e0e0e0', borderRadius: '6px', padding: '1rem', backgroundColor: '#fafafa' }}>
                   <div style={{ fontSize: '0.75rem', color: '#666666', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>
                     Plausible Range ({Math.round(coverage * 100)}th Percentile)
@@ -542,7 +489,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
                 </div>
               </div>
 
-              {/* Intraday Trend & Ramp Analysis - Clean & Concise */}
               <div
                 style={{
                   display: 'flex',
@@ -576,7 +522,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
             </div>
           )}
 
-          {/* 3. SECONDARY CHART: SHORTFALL PROBABILITY BY HALF-HOUR */}
           <div
             style={{
               border: '1px solid #e0e0e0',
@@ -628,7 +573,6 @@ export const Page2DecisionReplay: React.FC<Page2Props> = ({
             </div>
           </div>
 
-          {/* 4. COLLAPSED "INTERVAL DETAILS" TABLE WITH EXPORT TO CSV */}
           <div style={{ border: '1px solid #e0e0e0', borderRadius: '8px', backgroundColor: '#ffffff', overflow: 'hidden' }}>
             <div
               style={{

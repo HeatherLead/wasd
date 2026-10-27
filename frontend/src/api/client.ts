@@ -1,9 +1,3 @@
-/**
- * frontend/src/api/client.ts
- * Strongly-typed API client matching backend FastAPI schemas.
- * Includes commercial buying decision endpoints: revisions trajectory and worst intervals.
- */
-
 export interface UnitsBlock {
   generation: string;
   error: string;
@@ -298,7 +292,7 @@ async function fetchJson<T>(endpoint: string, params?: Record<string, string | u
         errorDetail = errJson.detail;
       }
     } catch {
-      // Fallback
+      void 0;
     }
     throw new Error(errorDetail);
   }
@@ -387,10 +381,6 @@ export const apiClient = {
       lookback_days: String(lookbackDays),
     }),
 };
-
-// ----------------------------------------------------
-// Day-Ahead Wind Forecast & Uncertainty Types (Page 2)
-// ----------------------------------------------------
 
 export interface DayAheadStatus {
   delivery_date: string;
@@ -484,5 +474,3 @@ export interface DayAheadValidationResponse {
   calibration_table: CalibrationTableItem[];
   units: UnitsBlock;
 }
-
-

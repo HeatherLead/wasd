@@ -1,13 +1,6 @@
-/**
- * frontend/src/components/BoxPlotChart.tsx
- * Precision SVG Box-and-Whisker Plot for signed forecast error (Forecast - Actual, MW).
- * Displays Min, Whisker Low, Q1, Median, Q3, Whisker High, and Outlier points.
- * Monochromatic high-contrast styling (white background, black strokes, zero gradients).
- */
-
 import React, { useState } from 'react';
 import type { BoxPlotStats } from '../api/client';
-import { PRIMARY_COLOR } from '../theme';
+import { PRIMARY_COLOR, BOX_PLOT_DIMENSIONS } from '../store';
 
 interface BoxPlotChartProps {
   stats: BoxPlotStats;
@@ -31,20 +24,14 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
     );
   }
 
-  // Determine global domain from extremes or whiskers
   const minVal = stats.min_mw ?? stats.whisker_low_mw ?? -5000;
   const maxVal = stats.max_mw ?? stats.whisker_high_mw ?? 5000;
   const domainMin = Math.min(minVal, -500);
   const domainMax = Math.max(maxVal, 500);
   const domainRange = domainMax - domainMin || 1;
 
-  // SVG dimensions
-  const svgWidth = 720;
-  const svgHeight = 140;
-  const margin = { left: 40, right: 40, top: 30, bottom: 40 };
+  const { svgWidth, svgHeight, margin, plotCenterY, boxHeight } = BOX_PLOT_DIMENSIONS;
   const plotWidth = svgWidth - margin.left - margin.right;
-  const plotCenterY = 55;
-  const boxHeight = 44;
 
   const scaleX = (val: number) => {
     const clamped = Math.max(domainMin, Math.min(domainMax, val));
@@ -102,7 +89,6 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           style={{ width: '100%', minWidth: '550px', height: 'auto', display: 'block' }}
         >
-          {/* Background grid / Zero axis */}
           <line
             x1={margin.left}
             y1={plotCenterY}
@@ -112,7 +98,6 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             strokeWidth="1"
           />
 
-          {/* Zero Error Reference Line */}
           <line
             x1={zeroX}
             y1={15}
@@ -133,7 +118,6 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             0 MW (Exact)
           </text>
 
-          {/* Whisker Line (Low to High) */}
           <line
             x1={whiskerLowX}
             y1={plotCenterY}
@@ -151,7 +135,6 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             strokeWidth="1.5"
           />
 
-          {/* Whisker End Caps */}
           <line
             x1={whiskerLowX}
             y1={plotCenterY - 14}
@@ -169,7 +152,6 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             strokeWidth="2"
           />
 
-          {/* Interquartile Range (IQR) Box: Q1 to Q3 */}
           <rect
             x={q1X}
             y={plotCenterY - boxHeight / 2}
@@ -183,7 +165,6 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             onMouseLeave={() => setHoveredValue(null)}
           />
 
-          {/* Median Line */}
           <line
             x1={medX}
             y1={plotCenterY - boxHeight / 2}
@@ -196,7 +177,6 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             onMouseLeave={() => setHoveredValue(null)}
           />
 
-          {/* Outlier Dots */}
           {stats.outliers && stats.outliers.map((outlierVal, idx) => {
             const ox = scaleX(outlierVal);
             return (
@@ -215,7 +195,6 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
             );
           })}
 
-          {/* Key Value Labels along the bottom */}
           <text x={whiskerLowX} y={plotCenterY + 34} textAnchor="middle" fontSize="10" fill="#333333">
             {stats.whisker_low_mw?.toLocaleString()}
           </text>
@@ -244,7 +223,6 @@ export const BoxPlotChart: React.FC<BoxPlotChartProps> = ({
         </svg>
       </div>
 
-      {/* Simplified Readout Bar */}
       <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid #eeeeee', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ fontSize: '0.85rem' }}>
           <span style={{ color: '#666666', marginRight: '0.4rem' }}>Median:</span>

@@ -1,6 +1,3 @@
-/* frontend/src/index.css */
-/* Design Palette: Clean White Background, Solid Black Typography, Zero Gradients */
-
 :root {
   --bg-primary: #ffffff;
   --bg-surface: #ffffff;
@@ -57,7 +54,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Zero gradients enforced globally */
 * {
   background-image: none !important;
 }
@@ -76,7 +72,6 @@ select {
   color: inherit;
 }
 
-/* Primary Button & Action Styles */
 .btn-primary,
 button.btn-primary,
 .button-primary {
@@ -142,7 +137,6 @@ button.btn-primary:disabled,
   background-color: var(--primary-light);
 }
 
-/* App Container */
 .app-container {
   min-height: 100vh;
   display: flex;
@@ -150,7 +144,6 @@ button.btn-primary:disabled,
   background-color: var(--bg-primary);
 }
 
-/* Header */
 .app-header {
   border-bottom: 1px solid var(--border-light);
   background-color: var(--bg-primary);
@@ -245,7 +238,6 @@ button.btn-primary:disabled,
   box-shadow: 0 0 0 1px var(--color-primary);
 }
 
-/* Nav Tabs */
 .nav-tabs {
   display: flex;
   gap: 4px;
@@ -279,7 +271,6 @@ button.btn-primary:disabled,
   border-bottom: 2px solid var(--color-primary);
 }
 
-/* Main Content Area */
 .app-content {
   flex: 1;
   padding: 24px;
@@ -288,7 +279,6 @@ button.btn-primary:disabled,
   width: 100%;
 }
 
-/* KPI Cards Grid */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -364,7 +354,6 @@ button.btn-primary:disabled,
   color: var(--text-secondary);
 }
 
-/* Tooltip floating box */
 .tooltip-box {
   position: absolute;
   top: 100%;
@@ -406,13 +395,11 @@ button.btn-primary:disabled,
   margin-top: 2px;
 }
 
-/* Chart Container */
 .chart-container {
   width: 100%;
   height: 380px;
 }
 
-/* Day Navigation Toolbar */
 .day-nav-bar {
   display: flex;
   align-items: center;
@@ -471,7 +458,6 @@ button.btn-primary:disabled,
   color: #ffffff;
 }
 
-/* Tables */
 .table-wrapper {
   overflow-x: auto;
   border: 1px solid var(--border-light);
@@ -523,7 +509,6 @@ button.btn-primary:disabled,
   font-family: var(--font-mono);
 }
 
-/* Status Badges */
 .badge-ok {
   display: inline-block;
   padding: 2px 6px;
@@ -545,7 +530,6 @@ button.btn-primary:disabled,
   color: #ffffff;
 }
 
-/* Error States and Loaders */
 .loading-skeleton {
   background-color: var(--bg-subtle);
   border-radius: var(--radius-sm);
@@ -601,7 +585,6 @@ button.btn-primary:disabled,
   background-color: var(--primary-hover);
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
   .app-header {
     padding: 12px 16px;
@@ -621,7 +604,6 @@ button.btn-primary:disabled,
   }
 }
 
-/* Modern Cutoff Selector Pill */
 .modern-cutoff-pill {
   display: inline-flex;
   align-items: center;
@@ -675,7 +657,6 @@ button.btn-primary:disabled,
   }
 }
 
-/* Slim modern scrollbars for dropdowns and panels */
 [role="listbox"]::-webkit-scrollbar {
   width: 5px;
 }
@@ -693,7 +674,6 @@ button.btn-primary:disabled,
   background-color: #9ca3af;
 }
 
-/* Forecast Error Trend & Bento Grid Layout (70% Graph, 30% Bento Grid) */
 .trend-layout-container {
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);

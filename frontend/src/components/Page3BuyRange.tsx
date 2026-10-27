@@ -1,17 +1,3 @@
-/**
- * frontend/src/components/Page3BuyRange.tsx
- * Page 3: Wholesale Buy Range (The Recommendation)
- *
- * Core Question: "What range of wholesale energy do we need to purchase to cover customer demand?"
- *
- * Design:
- * - Simple and short: single focused view without friction or blocking screens.
- * - Interactive Demand Target bar at top with presets (8k, 10k, 12k default, 15k MW) and custom numeric input.
- * - 3 Summary cards: Total Daily Procurement Range (MWh), Peak Power Buy Need (MW), and Wind Shortfall Exposure (MWh).
- * - Half-hourly procurement schedule band chart with high-contrast legend and settlement period tooltips.
- * - Plain English actionable trading guidance.
- */
-
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   ResponsiveContainer,
@@ -26,7 +12,12 @@ import {
 } from 'recharts';
 import { apiClient, type BuyRangeResponse } from '../api/client';
 import { ShieldAlert, Zap, CheckCircle } from 'lucide-react';
-import { PRIMARY_COLOR, PRIMARY_COLOR_AREA } from '../theme';
+import {
+  PRIMARY_COLOR,
+  PRIMARY_COLOR_AREA,
+  DEMAND_PRESETS,
+  DEFAULT_DEMAND_MW,
+} from '../store';
 import { formatDate } from '../utils/date';
 
 interface Page3BuyRangeProps {
@@ -37,31 +28,25 @@ interface Page3BuyRangeProps {
   onNavigateToPage2?: () => void;
 }
 
-const DEMAND_PRESETS = [8000, 10000, 12000, 15000];
-const DEFAULT_DEMAND = 12000;
-
 export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
   selectedDate,
   cutoffTime,
   demandMw,
   onDemandChange,
 }) => {
-  // Use 12,000 MW default if none set yet
-  const effectiveDemand = demandMw ?? DEFAULT_DEMAND;
+  const effectiveDemand = demandMw ?? DEFAULT_DEMAND_MW;
 
   const [data, setData] = useState<BuyRangeResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [tempDemand, setTempDemand] = useState<string>(String(effectiveDemand));
 
-  // Sync temp input if parent prop changes
   useEffect(() => {
     if (demandMw !== null && demandMw !== undefined) {
       setTempDemand(String(demandMw));
     }
   }, [demandMw]);
 
-  // Fetch buy range data
   useEffect(() => {
     let isCancelled = false;
     setIsLoading(true);
@@ -97,7 +82,6 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
   const totals = data?.totals;
   const quantiles = data?.quantiles;
 
-  // Chart data formatting: Optimal Buy Range bounded by Forecast Baseline and Estimated Actual
   const chartData = useMemo(() => {
     if (!data?.intervals) return [];
     return data.intervals.map((item) => {
@@ -122,13 +106,11 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
     });
   }, [data]);
 
-  // Optimal procurement range directly derived from Page 2 Forecast Baseline and Expected Actual (Bias-Adjusted)
   const baseMwh = totals?.base_need_total_mwh ?? 0;
   const centralMwh = totals?.central_need_total_mwh ?? 0;
   const optimalLowMwh = Math.min(baseMwh, centralMwh);
   const optimalHighMwh = Math.max(baseMwh, centralMwh);
 
-  // Peak power procurement needs based on forecast baseline vs expected actual from Page 2
   const peakForecast = data?.intervals && data.intervals.length > 0 ? Math.max(0, ...data.intervals.map((it) => it.base_need_mw ?? 0)) : 0;
   const peakEstimated = data?.intervals && data.intervals.length > 0 ? Math.max(0, ...data.intervals.map((it) => it.central_need_mw ?? 0)) : 0;
   const optimalPeakLow = Math.min(peakForecast, peakEstimated);
@@ -138,7 +120,6 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* 1. INTERACTIVE DEMAND INPUT BAR */}
       <section
         style={{
           border: '1px solid #e0e0e0',
@@ -157,7 +138,6 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
             gap: '1rem',
           }}
         >
-          {/* Left Title & Icon */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div
               style={{
@@ -195,11 +175,9 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
             </div>
           </div>
 
-          {/* Right Controls: Unified Height Presets and Custom Input */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: '#666666' }}>Presets:</span>
 
-            {/* Presets Segmented Control */}
             <div style={{ display: 'flex', gap: '3px', backgroundColor: '#f1f3f5', padding: '3px', borderRadius: '6px' }}>
               {DEMAND_PRESETS.map((preset) => {
                 const isActive = effectiveDemand === preset;
@@ -228,7 +206,7 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                     }}
                   >
                     <span>{preset.toLocaleString()} MW</span>
-                    {preset === DEFAULT_DEMAND && (
+                    {preset === DEFAULT_DEMAND_MW && (
                       <span
                         style={{
                           fontSize: '9px',
@@ -249,7 +227,6 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
 
             <div style={{ width: '1px', height: '24px', backgroundColor: '#e0e0e0' }} />
 
-            {/* Custom Numeric Input Form */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -326,16 +303,13 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
         </div>
       </section>
 
-      {/* ERROR BANNER */}
       {error && (
         <div style={{ padding: '1rem', border: '1px solid #d32f2f', borderRadius: '8px', backgroundColor: '#ffebee', color: '#d32f2f' }}>
           {error}
         </div>
       )}
 
-      {/* 3. THREE WHOLESALE PROCUREMENT SUMMARY CARDS - Realistic, optimal range */}
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-        {/* Card 1: Daily Energy Buy Range (Optimal) */}
         <div style={{ background: '#ffffff', border: `1.5px solid ${PRIMARY_COLOR}`, borderRadius: '8px', padding: '1.1rem 1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: PRIMARY_COLOR, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
@@ -352,7 +326,6 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
           </div>
         </div>
 
-        {/* Card 2: Peak Power Buy Range (Optimal) */}
         <div style={{ background: '#ffffff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '1.1rem 1.25rem' }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
             Peak Power Need (Optimal)
@@ -366,7 +339,6 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
           </div>
         </div>
 
-        {/* Card 3: Downside Risk Ceiling */}
         <div style={{ background: '#ffffff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '1.1rem 1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
             <ShieldAlert size={14} color="#d32f2f" />
@@ -382,7 +354,6 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
         </div>
       </section>
 
-      {/* 4. MAIN WHOLESALE BUY RANGE BAND CHART */}
       <section style={{ background: '#ffffff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
@@ -427,11 +398,12 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                 <Tooltip
                   content={({ active, payload, label }) => {
                     if (!active || !payload || !payload.length) return null;
-                    const optLow = payload.find((p) => p.dataKey === 'optLowNeedMw')?.value as number;
-                    const optHigh = payload.find((p) => p.dataKey === 'optHighNeedMw')?.value as number;
-                    const central = payload.find((p) => p.dataKey === 'centralNeedMw')?.value as number;
-                    const base = payload.find((p) => p.dataKey === 'baseNeedMw')?.value as number;
-                    const high = payload.find((p) => p.dataKey === 'highNeedMw')?.value as number;
+                    const d = payload[0]?.payload;
+                    if (!d) return null;
+                    const optLow = d.optLowNeedMw ?? Math.min(d.baseNeedMw ?? 0, d.centralNeedMw ?? 0);
+                    const optHigh = d.optHighNeedMw ?? Math.max(d.baseNeedMw ?? 0, d.centralNeedMw ?? 0);
+                    const central = d.centralNeedMw ?? 0;
+                    const base = d.baseNeedMw ?? 0;
                     return (
                       <div
                         style={{
@@ -447,25 +419,19 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                           {formatDate(selectedDate)} @ {label} UTC
                         </div>
                         <div style={{ color: PRIMARY_COLOR, fontWeight: 700 }}>
-                          Optimal Buy Range: {Math.round(optLow ?? 0).toLocaleString()} – {Math.round(optHigh ?? 0).toLocaleString()} MW
+                          Optimal Buy Range: {Math.round(optLow).toLocaleString()} – {Math.round(optHigh).toLocaleString()} MW
                         </div>
                         <div style={{ color: '#222222', marginTop: '0.2rem' }}>
-                          Estimated Actual Need: <strong>{Math.round(central ?? 0).toLocaleString()} MW</strong>
+                          Estimated Actual Need: <strong>{Math.round(central).toLocaleString()} MW</strong>
                         </div>
                         <div style={{ color: '#666666', marginTop: '0.15rem' }}>
-                          Forecast Baseline Need: {Math.round(base ?? 0).toLocaleString()} MW
+                          Forecast Baseline Need: {Math.round(base).toLocaleString()} MW
                         </div>
-                        {high !== undefined && high > optHigh && (
-                          <div style={{ color: '#d32f2f', marginTop: '0.15rem', fontSize: '0.75rem' }}>
-                            Downside Risk Ceiling: {Math.round(high).toLocaleString()} MW
-                          </div>
-                        )}
                       </div>
                     );
                   }}
                 />
 
-                {/* High Contrast Crisp Legend */}
                 <Legend
                   verticalAlign="top"
                   align="right"
@@ -492,15 +458,10 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                         <span style={{ width: '18px', height: '2px', borderTop: '2px dashed #666666', display: 'inline-block' }} />
                         <span style={{ color: '#666666', fontWeight: 600 }}>Forecast Baseline Need</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ width: '18px', height: '2px', borderTop: '2px dashed #d32f2f', display: 'inline-block' }} />
-                        <span style={{ color: '#d32f2f', fontWeight: 600 }}>Downside Risk Ceiling (P90)</span>
-                      </div>
                     </div>
                   )}
                 />
 
-                {/* Optimal Buy Band [min(base, central), max(base, central)] */}
                 <Area
                   type="monotone"
                   dataKey="rangeBand"
@@ -511,7 +472,6 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                   name="Optimal Buy Range"
                 />
 
-                {/* Central Estimate Line (Page 2 Estimated Actual Need) */}
                 <Line
                   type="monotone"
                   dataKey="centralNeedMw"
@@ -521,7 +481,6 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                   dot={false}
                 />
 
-                {/* Base Need Line (Page 2 Forecast Baseline) */}
                 <Line
                   type="monotone"
                   dataKey="baseNeedMw"
@@ -531,23 +490,11 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
                   strokeDasharray="4 2"
                   dot={false}
                 />
-
-                {/* Severe Downside Ceiling (P90 risk buffer) */}
-                <Line
-                  type="monotone"
-                  dataKey="highNeedMw"
-                  name="Downside Risk Ceiling"
-                  stroke="#d32f2f"
-                  strokeWidth={1}
-                  strokeDasharray="3 3"
-                  dot={false}
-                />
               </ComposedChart>
             </ResponsiveContainer>
           )}
         </div>
 
-        {/* 5. Empirical Methodology & Quantiles Footnote */}
         <div
           style={{
             marginTop: '1.25rem',
@@ -561,7 +508,6 @@ export const Page3BuyRange: React.FC<Page3BuyRangeProps> = ({
             fontSize: '0.75rem',
           }}
         >
-
           {quantiles && (
             <div style={{ display: 'flex', gap: '1rem', color: '#444444' }}>
               <span>

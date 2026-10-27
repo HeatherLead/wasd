@@ -1,18 +1,3 @@
-/**
- * frontend/src/components/Page1Accuracy.tsx
- * Page 1: Accuracy & History
- *
- * Rules strictly followed:
- * 1. Minimal text, no clutter.
- * 2. Plain English (idiot-proof, no high-brow jargon).
- * 3. Simulation day selector: 1 Jan to 31 Jan dropdown.
- * 4. 4 KPI cards: 80px height x 150px width.
- * 5. Forecast vs Actual graph for last 7 days (or previous month toggle), supporting December 2025 data.
- * 6. Box plot with median & outliers for difference (Forecast − Actual).
- * 7. Percentage difference callout (e.g. "Actual was 8.4% short of prediction").
- * 8. Audits at the end: Show ONLY the audit table (Status column removed).
- */
-
 import React, { useState, useEffect } from 'react';
 import {
   ResponsiveContainer,
@@ -39,7 +24,7 @@ import {
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
-import { PRIMARY_COLOR } from '../theme';
+import { PRIMARY_COLOR, DEFAULT_CUTOFF_TIME, MONTH_RANGE_JANUARY } from '../store';
 import { formatDate } from '../utils/date';
 
 interface Page1AccuracyProps {
@@ -57,9 +42,8 @@ type WindowMode = 'week' | 'month';
 
 function getRangeForWindow(simDateStr: string, mode: WindowMode) {
   if (mode === 'month') {
-    return { startDate: '2026-01-01', endDate: '2026-01-31' };
+    return MONTH_RANGE_JANUARY;
   }
-  // mode === 'week': Exactly 7 days prior to simDateStr
   const simDate = new Date(`${simDateStr}T00:00:00Z`);
   const endDateObj = new Date(simDate);
   endDateObj.setUTCDate(endDateObj.getUTCDate() - 1);
@@ -76,22 +60,17 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
   accuracy,
   days,
   selectedDate,
-  cutoffTime = '09:00',
+  cutoffTime = DEFAULT_CUTOFF_TIME,
   dayDetail,
   isLoadingDayDetail,
 }) => {
-  // Time window: 'week' (Last 7 Days before simulation date) or 'month' (Full Month)
   const [windowMode, setWindowMode] = useState<WindowMode>('week');
-
-  // Dynamic window data fetched for the specific date window
   const [windowSummary, setWindowSummary] = useState<SummaryResponse | null>(null);
   const [windowAccuracy, setWindowAccuracy] = useState<AccuracyResponse | null>(null);
   const [windowDays, setWindowDays] = useState<DaySummaryItem[]>([]);
 
-  // Calculate window date boundaries (supports Dec 2025 when simulating early Jan)
   const { startDate, endDate } = getRangeForWindow(selectedDate, windowMode);
 
-  // Fetch metrics for chosen window
   useEffect(() => {
     let isMounted = true;
     const fetchWindowData = async () => {
@@ -117,19 +96,16 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
     };
   }, [selectedDate, windowMode, cutoffTime, startDate, endDate]);
 
-  // Active data source: window data if available, fallback to global props
   const activeSummary = windowSummary || summary;
   const activeAccuracy = windowAccuracy || accuracy;
   const activeDays = windowDays.length > 0 ? windowDays : days;
 
-  // Extract KPI values in plain terms
   const kpis = activeSummary?.kpis;
   const nmaePct = kpis?.nmae_pct ?? (kpis?.normalised_mae ? kpis.normalised_mae * 100 : 0);
   const overRatePct =
     kpis?.overforecast_rate_pct ??
     (kpis?.share_intervals_overforecast ? kpis.share_intervals_overforecast * 100 : 85.1);
 
-  // Percentage Difference calculation (Actual vs Forecasted)
   const meanActual = kpis?.mean_actual_mw ?? 0;
   const meanForecast = kpis?.mean_forecast_mw ?? 0;
   const diffMw = meanActual - meanForecast;
@@ -138,7 +114,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
   const absPct = Math.abs(pctDiff).toFixed(1);
   const absMw = Math.abs(Math.round(diffMw)).toLocaleString();
 
-  // Chart data: daily averages with clean labels handling December & January
   const chartData = activeDays.map((d) => {
     const isDec = d.delivery_date.slice(5, 7) === '12';
     const dayNumber = parseInt(d.delivery_date.slice(8), 10);
@@ -154,7 +129,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
     };
   });
 
-  // Daily difference calculations for Max Difference and Least Difference
   const diffList = activeDays
     .filter((d) => d.mean_actual_mw !== null && d.mean_forecast_mw !== null)
     .map((d) => {
@@ -181,7 +155,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
       ? diffList.reduce((min, cur) => (cur.absDiff < min.absDiff ? cur : min), diffList[0])
       : null;
 
-  // Error Trend Chart Data (Actual − Predicted) & 3-point Rolling Average
   const errorTrendData = activeDays.map((d, index, arr) => {
     const isDec = d.delivery_date.slice(5, 7) === '12';
     const dayNumber = parseInt(d.delivery_date.slice(8), 10);
@@ -191,10 +164,8 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
 
     const actual = d.mean_actual_mw !== null ? Math.round(d.mean_actual_mw) : null;
     const forecast = d.mean_forecast_mw !== null ? Math.round(d.mean_forecast_mw) : null;
-    // Error defined as Actual - Forecast (negative = actual was below predicted generation)
     const errorMw = actual !== null && forecast !== null ? actual - forecast : null;
 
-    // 3-point rolling moving average (backward-looking: up to 3 points including current)
     let rollingAvgMw: number | null = null;
     if (errorMw !== null) {
       const windowSlice = arr
@@ -217,7 +188,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
       date: d.delivery_date,
       dayOfWeek,
       shortLabel: `${dayNumber} ${monthStr}`,
-      // For week mode, show day of week like "Mon", "Tue" (matching reference image); for month mode show "1 Jan", "2 Jan"
       axisLabel: windowMode === 'week' ? dayOfWeek : `${dayNumber} ${monthStr}`,
       fullDateLabel: `${dayOfWeek}, ${dayNumber} ${monthStr} ${isDec ? '2025' : '2026'}`,
       actualMw: actual,
@@ -227,20 +197,15 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
     };
   });
 
-  // Dynamic Trend Analysis for Forecast Error Trend
   const validTrendItems = errorTrendData.filter((d) => d.errorMw !== null);
   const totalTrendDays = validTrendItems.length;
-  // Overpredicted = actual was below predicted (errorMw < 0)
   const overpredictedCount = validTrendItems.filter((d) => d.errorMw! < 0).length;
-  // Underpredicted = actual was above predicted (errorMw > 0)
   const underpredictedCount = validTrendItems.filter((d) => d.errorMw! > 0).length;
-  // Average error
   const avgTrendErrorMw =
     totalTrendDays > 0
       ? Math.round(validTrendItems.reduce((acc, d) => acc + d.errorMw!, 0) / totalTrendDays)
       : 0;
 
-  // Trajectory: compare first point rolling average vs last point rolling average
   const firstRolling = validTrendItems[0]?.rollingAvgMw ?? null;
   const lastRolling = validTrendItems[validTrendItems.length - 1]?.rollingAvgMw ?? null;
 
@@ -279,7 +244,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
       trendExplanation = `Forecast errors fluctuated across the days. Predictions ran higher than actual on ${overpredictedCount} days and lower on ${underpredictedCount} days, with a net average difference of ${avgTrendErrorMw > 0 ? '+' : ''}${avgTrendErrorMw.toLocaleString()} MW.`;
     }
 
-    // Add trajectory nuance if relevant
     if (firstRolling !== null && lastRolling !== null && totalTrendDays >= 4) {
       const change = lastRolling - firstRolling;
       if (avgTrendErrorMw < 0 && change < -300) {
@@ -292,7 +256,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
 
   return (
     <div className="page-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* 1. The 4 Summary & Explanation Boxes (Compact Layout) */}
       <section
         style={{
           display: 'grid',
@@ -301,7 +264,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
           alignItems: 'stretch',
         }}
       >
-        {/* Box 1: Text Explain & Verdict */}
         <div
           style={{
             backgroundColor: '#ffffff',
@@ -316,7 +278,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
           }}
         >
           <div style={{ display: 'flex', flexDirection: "column", alignItems: 'flex-start', gap: '6px', flexWrap: 'wrap' }}>
-
             <span
               style={{
                 display: 'inline-block',
@@ -345,7 +306,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
           </div>
         </div>
 
-        {/* Box 2: Max Difference */}
         <div
           style={{
             backgroundColor: '#ffffff',
@@ -375,7 +335,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
           </div>
         </div>
 
-        {/* Box 3: Least Difference */}
         <div
           style={{
             backgroundColor: '#ffffff',
@@ -405,7 +364,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
           </div>
         </div>
 
-        {/* Box 4: Difference */}
         <div
           style={{
             backgroundColor: '#ffffff',
@@ -431,7 +389,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         </div>
       </section>
 
-      {/* 2. Graph: Predicted vs Actual Wind Power (Last 7 Days vs Full Month) */}
       <section style={{ background: '#ffffff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '1.25rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
@@ -445,7 +402,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
             </p>
           </div>
 
-          {/* Toggle: Previous Week vs Previous Month */}
           <div style={{ display: 'flex', gap: '4px', backgroundColor: '#f1f3f5', padding: '3px', borderRadius: '6px' }}>
             <button
               type="button"
@@ -484,7 +440,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
           </div>
         </div>
 
-        {/* Chart View */}
         <div style={{ height: '280px', width: '100%' }}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
@@ -568,7 +523,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         </div>
       </section>
 
-      {/* 3. Line Chart: Forecast Error Over Time with Rolling Average Trendline */}
       <section
         style={{
           background: '#ffffff',
@@ -587,7 +541,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         </div>
 
         <div className="trend-layout-container">
-          {/* Left: 70% Error Trend Line Chart */}
           <div className="trend-graph-pane">
             <div style={{ height: '280px', width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -717,9 +670,7 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
             </div>
           </div>
 
-          {/* Right: 30% Bento Grid */}
           <div className="trend-bento-pane">
-            {/* Bento Item 1: Dynamic Plain-English Trend Explanation */}
             {totalTrendDays > 0 && (
               <div
                 style={{
@@ -779,7 +730,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
               </div>
             )}
 
-            {/* Bento Item 2 & 3: The 2 KPI Cards Side-by-Side */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <KPICard
                 title="Error vs total power"
@@ -801,7 +751,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         </div>
       </section>
 
-      {/* 4. Box Plot: Outlier Check for the Window (Forecast − Actual) */}
       {activeAccuracy?.box_plot && (
         <section>
           <BoxPlotChart
@@ -815,7 +764,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         </section>
       )}
 
-      {/* 5. Key Accuracy Metrics (3 Professional Metrics) */}
       <section>
         <div
           style={{
@@ -824,7 +772,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
             gap: '12px',
           }}
         >
-          {/* 1. Mean Bias Error (MBE) */}
           <KPICard
             title="Mean Bias Error (MBE)"
             value={
@@ -838,7 +785,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
             height="86px"
           />
 
-          {/* 2. Mean Absolute Error (MAE) */}
           <KPICard
             title="Mean Absolute Error (MAE)"
             value={kpis?.mae_mw !== null && kpis?.mae_mw !== undefined ? Math.round(kpis.mae_mw).toLocaleString() : null}
@@ -848,7 +794,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
             height="86px"
           />
 
-          {/* 3. Normalized MAE (nMAE) */}
           <KPICard
             title="Normalized MAE (nMAE)"
             value={
@@ -865,7 +810,6 @@ export const Page1Accuracy: React.FC<Page1AccuracyProps> = ({
         </div>
       </section>
 
-      {/* 6. End of Page: Collapsible Audit Table (Open / Close) */}
       <section style={{ marginTop: '0.5rem' }}>
         {isLoadingDayDetail ? (
           <div style={{ padding: '2rem', textAlign: 'center', color: '#666666', fontSize: '0.85rem', backgroundColor: '#ffffff', border: '1px solid #e0e0e0', borderRadius: '8px' }}>
